@@ -1,0 +1,44 @@
+{:paths ["src" "resources"]
+
+ :deps
+ {org.clojure/clojure        {:mvn/version "1.11.1"}
+  org.clojure/tools.logging  {:mvn/version "1.3.0"}
+  org.clojure/core.async     {:mvn/version "1.6.681"}
+  ring/ring-core             {:mvn/version "1.11.0"}
+  ring/ring-jetty-adapter    {:mvn/version "1.11.0"}
+  ring/ring-json             {:mvn/version "0.5.1"}
+  metosin/reitit             {:mvn/version "0.7.0"}
+  metosin/reitit-ring        {:mvn/version "0.7.0"}
+  metosin/reitit-middleware  {:mvn/version "0.7.0"}
+  metosin/reitit-swagger     {:mvn/version "0.7.0"}
+  integrant/integrant        {:mvn/version "0.10.0"}
+  com.github.seancorfield/next.jdbc {:mvn/version "1.3.909"}
+  com.zaxxer/HikariCP        {:mvn/version "5.1.0"}
+  org.postgresql/postgresql  {:mvn/version "42.7.1"}
+  cheshire/cheshire          {:mvn/version "5.12.0"}}
+
+ :aliases
+ {:test
+  {:extra-paths ["test"]
+   :extra-deps  {lambdaisland/kaocha {:mvn/version "1.91.1392"}}
+   :main-opts   ["-m" "kaocha.runner"]}
+
+  :coverage
+  {:extra-paths ["test"]
+   :extra-deps  {cloverage/cloverage {:mvn/version "1.2.4"}
+                 lambdaisland/kaocha {:mvn/version "1.91.1392"}}
+   :main-opts   ["-m" "cloverage.coverage"
+                 "-p" "src"
+                 "-s" "test"
+                 "-r" ":clojure.test"
+                 "--fail-threshold" "98"
+                 "--line-fail-threshold" "98"
+                 "--form-fail-threshold" "95"
+                 "--low-watermark" "90"
+                 "--high-watermark" "98"
+                 "--html?"
+                 "--summary?"
+                 "--junit?"]}
+
+  :uberjar
+  {:main-opts ["-m" "clojure.main"]}}}

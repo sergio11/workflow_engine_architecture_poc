@@ -1,0 +1,52 @@
+services:
+  db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: workflow-engine-db
+    environment:
+      POSTGRES_USER: workflow_engine
+      POSTGRES_PASSWORD: workflow_dev
+      POSTGRES_DB: workflow_engine
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow_engine"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  test-db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: workflow-engine-test-db
+    environment:
+      POSTGRES_USER: workflow_engine_test
+      POSTGRES_PASSWORD: test_secret
+      POSTGRES_DB: workflow_engine_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow_engine_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+
+  app:
+    build: .
+    container_name: workflow-engine-app
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: jdbc:postgresql://localhost:5432/workflow_engine
+      DB_USER: workflow_engine
+      DB_PASSWORD: workflow_dev
+      APP_PORT: "3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

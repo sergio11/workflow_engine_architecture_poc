@@ -1,0 +1,14 @@
+#kaocha/v1
+{:tests [{:id           :unit
+          :test-paths   ["test"]
+          :source-paths ["src"]
+          :ns-patterns  ["-test$"]}
+         {:id           :integration
+          :test-paths   ["test"]
+          :source-paths ["src"]
+          :ns-patterns  ["-it$"]
+          :kaocha/focus? false}]
+ :color?          true
+ :watch?          false
+ :capture-output? true
+ :plugins         [:kaocha.plugin/profiling]}

@@ -1,0 +1,34 @@
+# Project specific
+srs.txt
+
+# Clojure
+.cpcache/
+.nrepl-port
+target/
+*.jar
+*.class
+.lein-*
+out/
+classes/
+.clj-kondo/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Coverage
+target/coverage/
+
+# Logs
+*.log
+logs/
