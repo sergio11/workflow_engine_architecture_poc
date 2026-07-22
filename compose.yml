@@ -40,7 +40,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: jdbc:postgresql://localhost:5432/workflow_engine
+      DATABASE_URL: jdbc:postgresql://db:5432/workflow_engine
       DB_USER: workflow_engine
       DB_PASSWORD: workflow_dev
       APP_PORT: "3000"
@@ -48,5 +48,41 @@ services:
       db:
         condition: service_healthy
 
+  dev:
+    image: docker.io/library/clojure:temurin-21-tools-deps
+    container_name: workflow-engine-dev
+    working_dir: /app
+    ports:
+      - "7888:7888"
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/workflow_engine
+      DB_USER: workflow_engine
+      DB_PASSWORD: workflow_dev
+    volumes:
+      - .:/app:Z
+      - maven-cache:/root/.m2
+    depends_on:
+      db:
+        condition: service_healthy
+    stdin_open: true
+    tty: true
+
+  test-runner:
+    image: docker.io/library/clojure:temurin-21-tools-deps
+    container_name: workflow-engine-test-runner
+    working_dir: /app
+    environment:
+      DATABASE_URL: jdbc:postgresql://test-db:5432/workflow_engine_test
+      DB_USER: workflow_engine_test
+      DB_PASSWORD: test_secret
+    volumes:
+      - .:/app:Z
+      - maven-cache:/root/.m2
+    depends_on:
+      test-db:
+        condition: service_healthy
+    command: ["clojure", "-M:test"]
+
 volumes:
   pgdata:
+  maven-cache:
