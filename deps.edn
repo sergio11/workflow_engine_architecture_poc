@@ -59,4 +59,7 @@
     :main-opts ["test/debug_script.clj"]}
 
    :uberjar
-   {:main-opts ["-m" "clojure.main"]}}}
+   {:extra-paths ["."]
+    :extra-deps {org.clojure/tools.build {:mvn/version "0.9.2"}}
+    :exec-fn build/uberjar
+    :main-opts ["-m" "clojure.main"]}}}

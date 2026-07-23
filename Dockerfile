@@ -3,17 +3,14 @@ FROM docker.io/library/clojure:temurin-21-tools-deps AS builder
 
 WORKDIR /app
 
-# Cache dependency downloads
-COPY deps.edn /app/
-RUN clojure -P
-
 # Copy source and build uberjar
+COPY deps.edn build.clj /app/
 COPY src /app/src
 COPY resources /app/resources
 RUN clojure -X:uberjar
 
 # ---- Runtime Stage ----
-FROM docker.io/library/eclipse-temurin:21-jre-bookworm-slim
+FROM docker.io/library/eclipse-temurin:21-jre
 
 RUN groupadd -r workflowengine && useradd -r -g workflowengine workflowengine
 
