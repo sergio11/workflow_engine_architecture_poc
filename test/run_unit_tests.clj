@@ -5,7 +5,10 @@
    'workflow-engine.workflow.dsl-test
    'workflow-engine.workflow.validator-test
    'workflow-engine.execution.state-machine-test
-   'workflow-engine.execution.context-test])
+   'workflow-engine.execution.context-test
+   'workflow-engine.worker.retry-test
+   'workflow-engine.worker.handler-test
+   'workflow-engine.worker.registry-test])
 
 (doseq [ns test-namespaces]
   (require ns))
