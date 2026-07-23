@@ -10,10 +10,14 @@
 (defn db-fixture [f]
   (let [ds (db/create-datasource (config/test-config))]
     (reset! test-datasource ds)
+    (db/execute! ds ["DELETE FROM events"])
+    (db/execute! ds ["DELETE FROM executions"])
     (db/execute! ds ["DELETE FROM workflows"])
     (try
       (f)
       (finally
+        (db/execute! ds ["DELETE FROM events"])
+        (db/execute! ds ["DELETE FROM executions"])
         (db/execute! ds ["DELETE FROM workflows"])
         (db/close-datasource! ds)
         (reset! test-datasource nil)))))

@@ -8,10 +8,12 @@
 
 (defn start-execution!
   [datasource workflow input-data]
-  (let [execution (model/make-execution
+  (let [first-step (first (:steps workflow))
+        execution (model/make-execution
                     (str (java.util.UUID/randomUUID))
                     (:id workflow)
                     (ctx/create-context input-data))
+        execution (assoc execution :current-step (:id first-step))
         _ (repo/save-execution! datasource execution)
         _ (log/info "Started execution" (:execution-id execution) "for workflow" (:id workflow))]
     execution))
@@ -74,9 +76,10 @@
   [datasource execution-id workflow]
   (let [execution (repo/get-execution datasource execution-id)]
     (when (and execution (= :failed (:status execution)))
-      (repo/update-execution! datasource execution-id {:status :running})
-      (log/info "Retrying execution" execution-id)
-      (execute-step!
-       datasource
-       (assoc execution :status :running)
-       workflow))))
+      (let [current-step (or (:current-step execution) (:id (first (:steps workflow))))]
+        (repo/update-execution! datasource execution-id {:status :running})
+        (log/info "Retrying execution" execution-id)
+        (execute-step!
+         datasource
+         (assoc execution :status :running :current-step current-step)
+         workflow)))))

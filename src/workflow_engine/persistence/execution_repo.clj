@@ -26,8 +26,8 @@
                       (:status updates) (conj "status = ?")
                       (contains? updates :current-step) (conj "current_step = ?")
                       (:context updates) (conj "context = ?::jsonb")
-                      (:started-at updates) (conj "started_at = ?")
-                      (:completed-at updates) (conj "completed_at = ?"))
+                      (:started-at updates) (conj "started_at = ?::timestamptz")
+                      (:completed-at updates) (conj "completed_at = ?::timestamptz"))
         values (cond-> []
                  (:status updates) (conj (name (:status updates)))
                  (contains? updates :current-step) (conj (if-let [cs (:current-step updates)] (name cs) nil))

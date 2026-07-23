@@ -43,7 +43,7 @@
 (deftest execute-step-test
   (testing "executes first step"
     (let [exec (engine/start-execution! @test-datasource test-workflow {:user "123"})
-          running (assoc exec :status :running :current-step :step-a)
+          running (assoc exec :status :running)
           result (engine/execute-step! @test-datasource running test-workflow)]
       (is (= :completed (:status result)))
       (is (= :step-b (:current-step result))))))

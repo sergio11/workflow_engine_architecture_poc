@@ -54,5 +54,9 @@
                  "--summary?"
                  "--junit?"]}
 
-  :uberjar
-  {:main-opts ["-m" "clojure.main"]}}}
+   :debug
+   {:extra-paths ["test"]
+    :main-opts ["test/debug_script.clj"]}
+
+   :uberjar
+   {:main-opts ["-m" "clojure.main"]}}}
