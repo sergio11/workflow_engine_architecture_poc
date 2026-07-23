@@ -1,7 +1,12 @@
 (ns workflow-engine.persistence.execution-repo
   (:require [workflow-engine.persistence.db :as db]
             [cheshire.core :as json]
+            [cheshire.generate :as gen]
             [clojure.string :as str]))
+
+(gen/add-encoder java.time.Instant
+  (fn [instant generator]
+    (.writeString generator (str instant))))
 
 (defn save-execution!
   [datasource execution]
@@ -12,6 +17,8 @@
     (name (:status execution))
     (name (or (:current-step execution) ""))
     (json/generate-string (:context execution))]))
+
+(defn- instant->str [t] (when t (str t)))
 
 (defn update-execution!
   [datasource execution-id updates]
@@ -25,8 +32,8 @@
                  (:status updates) (conj (name (:status updates)))
                  (contains? updates :current-step) (conj (if-let [cs (:current-step updates)] (name cs) nil))
                  (:context updates) (conj (json/generate-string (:context updates)))
-                 (:started-at updates) (conj (:started-at updates))
-                 (:completed-at updates) (conj (:completed-at updates)))
+                 (:started-at updates) (conj (instant->str (:started-at updates)))
+                 (:completed-at updates) (conj (instant->str (:completed-at updates))))
         sql (str "UPDATE executions SET " (str/join ", " set-clauses) ", updated_at = NOW() WHERE id = ?")]
     (db/execute! datasource (into [sql] (conj values execution-id)))))
 

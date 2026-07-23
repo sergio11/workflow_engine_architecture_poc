@@ -2,6 +2,12 @@
   (:require [workflow-engine.persistence.db :as db]
             [cheshire.core :as json]))
 
+(defn- strip-handlers
+  [workflow]
+  (update workflow :steps
+    (fn [steps]
+      (mapv (fn [s] (dissoc s :handler)) steps))))
+
 (defn save-workflow!
   [datasource workflow]
   (db/execute-one! datasource
@@ -10,7 +16,7 @@
     (:id workflow)
     (:name workflow)
     (:version workflow)
-    (json/generate-string workflow)]))
+    (json/generate-string (strip-handlers workflow))]))
 
 (defn get-workflow
   [datasource workflow-id]
