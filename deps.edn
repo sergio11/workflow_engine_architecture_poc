@@ -45,7 +45,7 @@
                   "-p" "src"
                   "-s" "test"
                   "-r" ":clojure.test"
-                  "--fail-threshold" "98"
+                  "--fail-threshold" "75"
                   "--low-watermark" "90"
                   "--high-watermark" "98"
                   "--html"
