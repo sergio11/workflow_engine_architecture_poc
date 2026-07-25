@@ -76,3 +76,74 @@
     (let [handler (handlers/start-execution @test-datasource)
           response (handler {:body {:workflow-id "nonexistent"}})]
       (is (= 404 (:status response))))))
+
+(deftest delete-workflow-test
+  (testing "deletes an existing workflow"
+    (let [wf (model/make-workflow "del-wf" "Delete Me" 1 [])]
+      (wf-repo/save-workflow! @test-datasource wf))
+    (let [handler (handlers/delete-workflow @test-datasource)
+          response (handler {:path-params {:id "del-wf"}})]
+      (is (= 204 (:status response))))))
+
+(deftest get-execution-test
+  (testing "gets an existing execution"
+    (let [wf (model/make-workflow "exec-g-wf" "Exec GW" 1
+               [(model/make-step :s1 :task (fn [_] {:ok true}))])]
+      (wf-repo/save-workflow! @test-datasource wf))
+    (let [start-handler (handlers/start-execution @test-datasource)
+          start-res (start-handler {:body {:workflow-id "exec-g-wf" :input {}}})
+          exec-id (get-in start-res [:body :execution-id])
+          get-handler (handlers/get-execution @test-datasource)
+          response (get-handler {:path-params {:id exec-id}})]
+      (is (= 200 (:status response)))
+      (is (= exec-id (get-in response [:body :execution-id])))))
+  (testing "returns 404 for missing execution"
+    (let [handler (handlers/get-execution @test-datasource)
+          response (handler {:path-params {:id "nonexistent"}})]
+      (is (= 404 (:status response))))))
+
+(deftest list-executions-test
+  (testing "lists executions for a workflow"
+    (let [wf (model/make-workflow "list-ex-wf" "List EX" 1
+               [(model/make-step :s1 :task (fn [_] {:ok true}))])]
+      (wf-repo/save-workflow! @test-datasource wf))
+    (let [start-handler (handlers/start-execution @test-datasource)
+          _ (start-handler {:body {:workflow-id "list-ex-wf" :input {:user "a"}}})
+          list-handler (handlers/list-executions @test-datasource)
+          response (list-handler {:query-params {"workflow_id" "list-ex-wf"}})]
+      (is (= 200 (:status response)))
+      (is (vector? (:body response))))))
+
+(deftest cancel-execution-test
+  (testing "cancels a running execution"
+    (let [wf (model/make-workflow "cancel-wf" "Cancel WF" 1
+               [(model/make-step :s1 :task (fn [_] {:ok true}))])]
+      (wf-repo/save-workflow! @test-datasource wf))
+    (let [start-handler (handlers/start-execution @test-datasource)
+          start-res (start-handler {:body {:workflow-id "cancel-wf" :input {}}})
+          exec-id (get-in start-res [:body :execution-id])
+          _ (db/execute! @test-datasource ["UPDATE executions SET status = 'running' WHERE id = ?" exec-id])
+          cancel-handler (handlers/cancel-execution @test-datasource)
+          response (cancel-handler {:path-params {:id exec-id}})]
+      (is (= 200 (:status response)))))
+  (testing "returns 404 for non-existent execution"
+    (let [handler (handlers/cancel-execution @test-datasource)
+          response (handler {:path-params {:id "nonexistent"}})]
+      (is (= 404 (:status response))))))
+
+(deftest resume-execution-test
+  (testing "resumes a waiting execution"
+    (let [wf (model/make-workflow "resume-wf" "Resume WF" 1
+               [(model/make-step :s1 :task (fn [_] {:ok true}))])]
+      (wf-repo/save-workflow! @test-datasource wf))
+    (let [start-handler (handlers/start-execution @test-datasource)
+          start-res (start-handler {:body {:workflow-id "resume-wf" :input {}}})
+          exec-id (get-in start-res [:body :execution-id])
+          _ (db/execute! @test-datasource ["UPDATE executions SET status = 'waiting', current_step = 's1' WHERE id = ?" exec-id])
+          resume-handler (handlers/resume-execution @test-datasource)
+          response (resume-handler {:path-params {:id exec-id} :body {:workflow-id "resume-wf"}})]
+      (is (= 200 (:status response)))))
+  (testing "returns 404 for non-existent execution"
+    (let [handler (handlers/resume-execution @test-datasource)
+          response (handler {:path-params {:id "nonexistent"} :body {:workflow-id "resume-wf"}})]
+      (is (= 404 (:status response))))))

@@ -43,4 +43,15 @@
       (is (not (:valid? result)))))
   (testing "invalid status"
     (let [result (validator/validate-execution {:execution-id "e" :workflow-id "w" :status :invalid})]
+      (is (not (:valid? result)))))
+  (testing "missing workflow-id"
+    (let [result (validator/validate-execution {:execution-id "e" :status :pending})]
+      (is (not (:valid? result)))))
+  (testing "missing status"
+    (let [result (validator/validate-execution {:execution-id "e" :workflow-id "w"})]
+      (is (not (:valid? result))))))
+
+(deftest validate-workflow-missing-name-test
+  (testing "missing name"
+    (let [result (validator/validate-workflow {:id "w" :steps [{}]})]
       (is (not (:valid? result))))))

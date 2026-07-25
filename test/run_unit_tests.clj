@@ -9,10 +9,12 @@
    'workflow-engine.worker.retry-test
    'workflow-engine.worker.handler-test
    'workflow-engine.worker.registry-test
+   'workflow-engine.worker.examples-test
    'workflow-engine.events.publisher-test
    'workflow-engine.scheduler.channels-test
    'workflow-engine.scheduler.core-test
-   'workflow-engine.metrics.collector-test])
+   'workflow-engine.metrics.collector-test
+   'workflow-engine.api.middleware-test])
 
 (doseq [ns test-namespaces]
   (require ns))

@@ -60,3 +60,32 @@
     (store/record-step-completed! @test-datasource "exec-1" :step-a {:result "ok"})
     (let [started (store/get-events-by-type @test-datasource :step-started)]
       (is (some #(= :step-started (:type %)) started)))))
+
+(deftest record-workflow-completed-test
+  (testing "records workflow completed event"
+    (store/record-workflow-completed! @test-datasource "exec-1")
+    (let [events (store/get-execution-events @test-datasource "exec-1")]
+      (is (>= (count events) 1))
+      (is (= :workflow-completed (:type (last events)))))))
+
+(deftest record-workflow-failed-test
+  (testing "records workflow failed event"
+    (store/record-workflow-failed! @test-datasource "exec-1" {:error "crash"})
+    (let [events (store/get-execution-events @test-datasource "exec-1")]
+      (is (>= (count events) 1))
+      (is (= :workflow-failed (:type (last events)))))))
+
+(deftest record-workflow-cancelled-test
+  (testing "records workflow cancelled event"
+    (store/record-workflow-cancelled! @test-datasource "exec-1")
+    (let [events (store/get-execution-events @test-datasource "exec-1")]
+      (is (>= (count events) 1))
+      (is (= :workflow-cancelled (:type (last events)))))))
+
+(deftest clear-execution-events-test
+  (testing "clears all events for execution"
+    (store/record-step-started! @test-datasource "exec-1" :step-a)
+    (store/record-step-completed! @test-datasource "exec-1" :step-a {:result "ok"})
+    (store/clear-execution-events! @test-datasource "exec-1")
+    (let [events (store/get-execution-events @test-datasource "exec-1")]
+      (is (= 0 (count events))))))

@@ -43,3 +43,23 @@
           retrieved (repo/get-execution @test-datasource "exec-2")]
       (is (= :running (:status retrieved)))
       (is (= :step1 (:current-step retrieved))))))
+
+(deftest list-executions-test
+  (testing "lists executions for a workflow"
+    (let [exec1 (model/make-execution "exec-list-1" "test-wf" {:user "a"})
+          exec2 (model/make-execution "exec-list-2" "test-wf" {:user "b"})
+          _ (repo/save-execution! @test-datasource exec1)
+          _ (repo/save-execution! @test-datasource exec2)
+          results (repo/list-executions @test-datasource "test-wf")]
+      (is (>= (count results) 2))))
+  (testing "returns empty for non-existent workflow"
+    (let [results (repo/list-executions @test-datasource "nonexistent")]
+      (is (= 0 (count results))))))
+
+(deftest update-context-test
+  (testing "updates execution context"
+    (let [exec (model/make-execution "exec-ctx" "test-wf" {:step1 "old"})
+          _ (repo/save-execution! @test-datasource exec)
+          _ (repo/update-execution! @test-datasource "exec-ctx" {:context {:step1 "new" :step2 "added"}})
+          retrieved (repo/get-execution @test-datasource "exec-ctx")]
+      (is (= {:step1 "new" :step2 "added"} (:context retrieved))))))

@@ -61,3 +61,42 @@
           _ (db/execute! @test-datasource ["UPDATE executions SET status = 'failed' WHERE id = ?" (:execution-id exec)])
           retried (engine/retry-execution! @test-datasource (:execution-id exec) test-workflow)]
       (is (= :completed (:status retried))))))
+
+(deftest advance-execution-test
+  (testing "advances a running execution"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {:user "adv"})
+          _ (db/execute! @test-datasource ["UPDATE executions SET status = 'running' WHERE id = ?" (:execution-id exec)])
+          advanced (engine/advance-execution! @test-datasource (:execution-id exec) test-workflow)]
+      (is (= :completed (:status advanced)))))
+  (testing "returns nil for non-existent execution"
+    (is (nil? (engine/advance-execution! @test-datasource "nonexistent" test-workflow)))))
+
+(deftest resume-execution-test
+  (testing "resumes a waiting execution"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {:user "res"})
+          _ (db/execute! @test-datasource ["UPDATE executions SET status = 'waiting' WHERE id = ?" (:execution-id exec)])
+          resumed (engine/resume-execution! @test-datasource (:execution-id exec) test-workflow)]
+      (is (= :completed (:status resumed)))))
+  (testing "returns nil for non-waiting execution"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {:user "res2"})]
+      (is (nil? (engine/resume-execution! @test-datasource (:execution-id exec) test-workflow))))))
+
+(deftest cancel-guard-test
+  (testing "returns nil for non-cancellable execution"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {:user "canc"})
+          _ (db/execute! @test-datasource ["UPDATE executions SET status = 'completed' WHERE id = ?" (:execution-id exec)])]
+      (is (nil? (engine/cancel-execution! @test-datasource (:execution-id exec)))))))
+
+(deftest retry-guard-test
+  (testing "returns nil for non-failed execution"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {:user "ret"})]
+      (is (nil? (engine/retry-execution! @test-datasource (:execution-id exec) test-workflow))))))
+
+(deftest execute-step-completion-test
+  (testing "completes workflow when no more steps"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {:user "fin"})
+          step1 (engine/execute-step! @test-datasource (assoc exec :status :running) test-workflow)
+          step2 (engine/execute-step! @test-datasource step1 test-workflow)
+          step3 (engine/execute-step! @test-datasource step2 test-workflow)]
+      (is (= :completed (:status step3)))
+      (is (nil? (:current-step step3))))))

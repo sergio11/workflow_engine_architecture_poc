@@ -47,4 +47,21 @@
   (testing "map retry config creates policy"
     (let [policy (retry/step-retry-policy {:retry {:max-attempts 5 :base-delay 2000}})]
       (is (= 5 (:max-attempts policy)))
-      (is (= 2000 (:base-delay policy))))))
+      (is (= 2000 (:base-delay policy)))))
+  (testing "unrecognized type returns nil"
+    (is (nil? (retry/step-retry-policy {:retry "invalid"})))))
+
+(deftest no-delay-test
+  (testing "always returns 0"
+    (is (= 0 (retry/no-delay 0)))
+    (is (= 0 (retry/no-delay 5)))))
+
+(deftest default-retry-policy-test
+  (testing "has expected defaults"
+    (is (= 3 (:max-attempts retry/default-retry-policy)))
+    (is (= 1000 (:base-delay retry/default-retry-policy)))))
+
+(deftest retry-delay-test
+  (testing "calculates delay using policy delay-fn"
+    (let [policy (retry/make-retry-policy {:base-delay 500 :delay-fn retry/fixed-delay})]
+      (is (= 500 (retry/retry-delay policy 2))))))

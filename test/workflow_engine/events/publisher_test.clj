@@ -54,3 +54,14 @@
         (pub/publish! {:type :step-completed})
         (is (= 3 (count @received)))
         (unsub)))))
+
+(deftest subscriber-exception-test
+  (testing "other subscribers still receive when one throws"
+    (let [r1 (atom nil)
+          r2 (atom nil)]
+      (pub/subscribe! :step-started (fn [e] (throw (Exception. "boom"))))
+      (pub/subscribe! :step-started (fn [e] (reset! r1 e)))
+      (pub/subscribe! :step-started (fn [e] (reset! r2 e)))
+      (pub/publish! {:type :step-started :step :s1})
+      (is (some? @r1))
+      (is (some? @r2)))))

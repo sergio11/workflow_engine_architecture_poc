@@ -61,3 +61,30 @@
       (is (contains? snap :counters))
       (is (contains? snap :gauges))
       (is (contains? snap :histograms)))))
+
+(deftest histogram-percentiles-test
+  (testing "computes percentiles for larger dataset"
+    (doseq [v (range 1 101)]
+      (metrics/record-histogram! :lat v))
+    (let [stats (metrics/get-histogram :lat)]
+      (is (= 100 (:count stats)))
+      (is (= 5050 (:sum stats)))
+      (is (== 50.5 (:mean stats)))
+      (is (= 1 (:min stats)))
+      (is (= 100 (:max stats)))
+      (is (some? (:p50 stats)))
+      (is (some? (:p95 stats)))
+      (is (some? (:p99 stats))))))
+
+(deftest record-step-retry-test
+  (testing "increments step-retries counter"
+    (metrics/record-step-retry!)
+    (metrics/record-step-retry!)
+    (is (= 2 (metrics/get-counter :step-retries)))))
+
+(deftest update-active-executions-test
+  (testing "sets active-executions gauge"
+    (metrics/update-active-executions! 5)
+    (is (= 5 (metrics/get-gauge :active-executions)))
+    (metrics/update-active-executions! 0)
+    (is (= 0 (metrics/get-gauge :active-executions)))))

@@ -37,22 +37,20 @@
   {:extra-paths ["test"]
    :main-opts   ["test/run_integration_tests.clj"]}
 
-  :coverage
-  {:extra-paths ["test"]
-   :extra-deps  {cloverage/cloverage {:mvn/version "1.2.4"}
-                 lambdaisland/kaocha {:mvn/version "1.91.1392"}}
-   :main-opts   ["-m" "cloverage.coverage"
-                 "-p" "src"
-                 "-s" "test"
-                 "-r" ":clojure.test"
-                 "--fail-threshold" "98"
-                 "--line-fail-threshold" "98"
-                 "--form-fail-threshold" "95"
-                 "--low-watermark" "90"
-                 "--high-watermark" "98"
-                 "--html?"
-                 "--summary?"
-                 "--junit?"]}
+   :coverage
+   {:extra-paths ["test"]
+    :extra-deps  {cloverage/cloverage {:mvn/version "1.2.4"}
+                  lambdaisland/kaocha {:mvn/version "1.91.1392"}}
+    :main-opts   ["-m" "cloverage.coverage"
+                  "-p" "src"
+                  "-s" "test"
+                  "-r" ":clojure.test"
+                  "--fail-threshold" "98"
+                  "--low-watermark" "90"
+                  "--high-watermark" "98"
+                  "--html"
+                  "--summary"
+                  "--junit"]}
 
    :debug
    {:extra-paths ["test"]

@@ -48,3 +48,26 @@
     (let [steps [[:a :task nil nil nil]]
           wf (dsl/linear-workflow "t" "T" 1 steps)]
       (is (nil? (dsl/next-step wf :a))))))
+
+(deftest task-step-with-retry-test
+  (testing "creates step with retry and timeout"
+    (let [step (dsl/task-step-with-retry :retry-task (fn [ctx] :done) {:max-attempts 3} 5000)]
+      (is (= :retry-task (first step)))
+      (is (= :task (second step)))
+      (is (= {:max-attempts 3} (nth step 3)))
+      (is (= 5000 (nth step 4))))))
+
+(deftest parallel-step-test
+  (testing "creates parallel step with sub-steps"
+    (let [sub-steps [{:handler (fn [ctx] :a)} {:handler (fn [ctx] :b)}]
+          step (dsl/parallel-step :parallel sub-steps)]
+      (is (= :parallel (:id step)))
+      (is (= :parallel (:type step)))
+      (is (fn? (:handler step)))
+      (is (= [:a :b] ((:handler step) {}))))))
+
+(deftest get-steps-test
+  (testing "returns steps from workflow"
+    (let [steps [[:a :task nil nil nil] [:b :task nil nil nil]]
+          wf (dsl/linear-workflow "t" "T" 1 steps)]
+      (is (= 2 (count (dsl/get-steps wf)))))))
