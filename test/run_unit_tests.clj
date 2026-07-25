@@ -11,7 +11,8 @@
    'workflow-engine.worker.registry-test
    'workflow-engine.events.publisher-test
    'workflow-engine.scheduler.channels-test
-   'workflow-engine.scheduler.core-test])
+   'workflow-engine.scheduler.core-test
+   'workflow-engine.metrics.collector-test])
 
 (doseq [ns test-namespaces]
   (require ns))
