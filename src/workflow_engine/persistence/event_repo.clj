@@ -24,8 +24,14 @@
 
 (defn get-events-by-type
   [datasource event-type]
-  (db/execute! datasource
-   ["SELECT id, execution_id, type, step, payload::text as payload, timestamp FROM events WHERE type = ? ORDER BY timestamp DESC" (name event-type)]))
+  (let [rows (db/execute! datasource
+               ["SELECT id, execution_id, type, step, payload::text as payload, timestamp FROM events WHERE type = ? ORDER BY timestamp DESC" (name event-type)])]
+    (mapv (fn [r] {:id (:id r)
+                   :execution-id (:execution_id r)
+                   :type (keyword (:type r))
+                   :step (keyword (:step r))
+                   :data (json/parse-string (:payload r) true)
+                   :timestamp (:timestamp r)}) rows)))
 
 (defn delete-events-by-execution!
   [datasource execution-id]

@@ -4,7 +4,8 @@
   ['workflow-engine.persistence.db-test
    'workflow-engine.persistence.workflow-repo-it
    'workflow-engine.persistence.execution-repo-it
-   'workflow-engine.execution.engine-test])
+   'workflow-engine.execution.engine-test
+   'workflow-engine.events.store-it])
 
 (doseq [ns test-namespaces]
   (require ns))

@@ -8,7 +8,8 @@
    'workflow-engine.execution.context-test
    'workflow-engine.worker.retry-test
    'workflow-engine.worker.handler-test
-   'workflow-engine.worker.registry-test])
+   'workflow-engine.worker.registry-test
+   'workflow-engine.events.publisher-test])
 
 (doseq [ns test-namespaces]
   (require ns))
