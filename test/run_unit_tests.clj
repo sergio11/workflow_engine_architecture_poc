@@ -14,7 +14,8 @@
    'workflow-engine.scheduler.channels-test
    'workflow-engine.scheduler.core-test
    'workflow-engine.metrics.collector-test
-   'workflow-engine.api.middleware-test])
+   'workflow-engine.api.middleware-test
+   'workflow-engine.core-test])
 
 (doseq [ns test-namespaces]
   (require ns))
