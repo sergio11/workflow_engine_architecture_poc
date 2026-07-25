@@ -6,7 +6,8 @@
    'workflow-engine.persistence.execution-repo-it
    'workflow-engine.execution.engine-test
    'workflow-engine.events.store-it
-   'workflow-engine.api.handlers-it])
+   'workflow-engine.api.handlers-it
+   'workflow-engine.integration.e2e-it])
 
 (doseq [ns test-namespaces]
   (require ns))
