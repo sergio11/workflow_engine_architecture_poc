@@ -53,7 +53,7 @@
     (let [app (make-app)
           response (app-post app "/api/v1/workflows"
                      {:name "Route WF" :version 1
-                      :steps [{:id :step1 :type :task}]})]
+                      :steps [[:step1 :task]]})]
       (is (= 201 (:status response)))
       (is (some? (get-in response [:body :id]))))))
 

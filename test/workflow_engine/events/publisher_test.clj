@@ -65,3 +65,26 @@
       (pub/publish! {:type :step-started :step :s1})
       (is (some? @r1))
       (is (some? @r2)))))
+
+(deftest subscribe-all-remaining-events-test
+  (testing "subscribe-all covers all 7 event types"
+    (let [received (atom [])]
+      (let [unsub (pub/subscribe-all! (fn [e] (swap! received conj e)))]
+        (pub/publish! {:type :step-failed})
+        (pub/publish! {:type :workflow-completed})
+        (pub/publish! {:type :workflow-failed})
+        (pub/publish! {:type :workflow-cancelled})
+        (is (= 4 (count @received)))
+        (unsub)))))
+
+(deftest subscriber-count-empty-type-test
+  (testing "returns 0 for unsubscribed type"
+    (is (= 0 (pub/subscriber-count :nonexistent)))))
+
+(deftest clear-subscribers-test
+  (testing "clearing removes all subscribers"
+    (pub/subscribe! :step-started (fn [_]))
+    (pub/subscribe! :step-completed (fn [_]))
+    (is (pos? (pub/subscriber-count)))
+    (pub/clear-subscribers!)
+    (is (= 0 (pub/subscriber-count)))))

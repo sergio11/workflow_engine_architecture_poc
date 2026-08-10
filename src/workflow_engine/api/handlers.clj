@@ -3,7 +3,9 @@
             [workflow-engine.persistence.execution-repo :as exec-repo]
             [workflow-engine.execution.engine :as engine]
             [workflow-engine.workflow.dsl :as dsl]
-            [workflow-engine.workflow.model :as model]))
+            [workflow-engine.workflow.model :as model]
+            [workflow-engine.worker.registry :as registry]
+            [workflow-engine.workflow.validator :as validator]))
 
 (defn create-workflow
   [datasource]
@@ -13,10 +15,18 @@
                (str (java.util.UUID/randomUUID))
                (:name body)
                (or (:version body) 1)
-               (mapv #(apply model/make-step %) (:steps body)))]
-      (wf-repo/save-workflow! datasource wf)
-      {:status 201
-       :body {:id (:id wf) :name (:name wf) :version (:version wf)}})))
+               (mapv #(apply model/make-step %) (:steps body)))
+          validation (validator/validate-workflow wf)]
+      (if (:valid? validation)
+        (do
+          (doseq [step (:steps wf)]
+            (when (:handler step)
+              (registry/register-handler! (:id step) (:handler step))))
+          (wf-repo/save-workflow! datasource wf)
+          {:status 201
+           :body {:id (:id wf) :name (:name wf) :version (:version wf)}})
+        {:status 400
+         :body {:error "Invalid workflow" :details (:errors validation)}}))))
 
 (defn get-workflow
   [datasource]
@@ -101,6 +111,19 @@
          :body {:execution-id (:execution-id result) :status (:status result)}}
         {:status 404
           :body {:error "Execution not found or not resumable"}}))))
+
+(defn retry-execution
+  [datasource]
+  (fn [request]
+    (let [id (get-in request [:path-params :id])
+          body (:body request)
+          wf (when (:workflow-id body) (wf-repo/get-workflow datasource (:workflow-id body)))
+          result (when wf (engine/retry-execution! datasource id wf))]
+      (if result
+        {:status 200
+         :body {:execution-id (:execution-id result) :status (:status result)}}
+        {:status 404
+         :body {:error "Execution not found or not retriable"}}))))
 
 (defn health-check [_request]
   {:status 200

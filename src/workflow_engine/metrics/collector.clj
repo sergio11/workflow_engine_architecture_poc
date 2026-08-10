@@ -16,8 +16,12 @@
 (defn record-histogram! [name value]
   (swap! metrics update-in [:histograms name]
     (fn [hist]
-      (let [hist (or hist {:values [] :sum 0 :count 0})]
-        {:values (conj (:values hist) value)
+      (let [hist (or hist {:values [] :sum 0 :count 0})
+            new-values (conj (:values hist) value)
+            new-values (if (> (count new-values) 1000)
+                         (subvec new-values (- (count new-values) 1000))
+                         new-values)]
+        {:values new-values
          :sum (+ (:sum hist) value)
          :count (inc (:count hist))}))))
 

@@ -6,8 +6,8 @@
             [workflow-engine.events.publisher :as pub]
             [workflow-engine.metrics.collector :as metrics]))
 
-(defmethod ig/init-key :workflow-engine/db [_ _]
-  (let [datasource (db/create-datasource (config/from-env))]
+(defmethod ig/init-key :workflow-engine/db [_ {:keys [db-config] :as _opts}]
+  (let [datasource (db/create-datasource (or db-config (config/from-env)))]
     datasource))
 
 (defmethod ig/halt-key! :workflow-engine/db [_ datasource]
@@ -23,16 +23,16 @@
   (metrics/clear-metrics!))
 
 (defmethod ig/init-key :workflow-engine/server [_ {:keys [datasource]}]
-  (server/start-server! (config/from-env)))
+  (server/start-server! datasource))
 
 (defmethod ig/halt-key! :workflow-engine/server [_ {:keys [server]}]
   (when server
     (.stop server)))
 
 (def system-config
-  {::db (ig/init-key :workflow-engine/db {})
-   ::publisher (ig/init-key :workflow-engine/publisher {})
-   ::metrics (ig/init-key :workflow-engine/metrics {})
+  {::db {}
+   ::publisher {}
+   ::metrics {}
    ::server {:datasource (ig/ref ::db)}})
 
 (defn start-system! []

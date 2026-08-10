@@ -12,10 +12,11 @@
       (is (= :create-user (:id (first (:steps wf))))))))
 
 (deftest task-step-test
-  (testing "creates task step vector"
+  (testing "creates task step record"
     (let [step (dsl/task-step :my-task (fn [ctx] :done))]
-      (is (= :my-task (first step)))
-      (is (= :task (second step))))))
+      (is (= :my-task (:id step)))
+      (is (= :task (:type step)))
+      (is (fn? (:handler step))))))
 
 (deftest wait-step-test
   (testing "creates wait step with handler"
@@ -52,10 +53,10 @@
 (deftest task-step-with-retry-test
   (testing "creates step with retry and timeout"
     (let [step (dsl/task-step-with-retry :retry-task (fn [ctx] :done) {:max-attempts 3} 5000)]
-      (is (= :retry-task (first step)))
-      (is (= :task (second step)))
-      (is (= {:max-attempts 3} (nth step 3)))
-      (is (= 5000 (nth step 4))))))
+      (is (= :retry-task (:id step)))
+      (is (= :task (:type step)))
+      (is (= {:max-attempts 3} (:retry step)))
+      (is (= 5000 (:timeout step))))))
 
 (deftest parallel-step-test
   (testing "creates parallel step with sub-steps"
@@ -71,3 +72,15 @@
     (let [steps [[:a :task nil nil nil] [:b :task nil nil nil]]
           wf (dsl/linear-workflow "t" "T" 1 steps)]
       (is (= 2 (count (dsl/get-steps wf)))))))
+
+(deftest next-step-nonexistent-test
+  (testing "returns nil when current step not in workflow"
+    (let [steps [[:a :task nil nil nil] [:b :task nil nil nil]]
+          wf (dsl/linear-workflow "t" "T" 1 steps)]
+      (is (nil? (dsl/next-step wf :nonexistent))))))
+
+(deftest get-step-by-id-not-found-test
+  (testing "returns nil when step id not found"
+    (let [steps [[:a :task nil nil nil]]
+          wf (dsl/linear-workflow "t" "T" 1 steps)]
+      (is (nil? (dsl/get-step-by-id wf :missing))))))

@@ -1,5 +1,6 @@
 (ns workflow-engine.persistence.workflow-repo
   (:require [workflow-engine.persistence.db :as db]
+            [workflow-engine.worker.registry :as registry]
             [cheshire.core :as json]))
 
 (defn- strip-handlers
@@ -24,8 +25,16 @@
               ["SELECT id, name, version, definition::text as definition FROM workflows WHERE id = ?" workflow-id])]
     (when row
       (let [wf (json/parse-string (:definition row) true)]
-        (update wf :steps (fn [steps]
-                            (mapv (fn [s] (update s :type keyword)) steps)))))))
+        (-> wf
+            (update :steps (fn [steps]
+                             (mapv (fn [s]
+                                     (let [s (-> s
+                                                (update :id keyword)
+                                                (update :type keyword))]
+                                       (if-let [handler (registry/get-handler (:id s))]
+                                         (assoc s :handler handler)
+                                         s)))
+                                   steps))))))))
 
 (defn list-workflows
   [datasource]

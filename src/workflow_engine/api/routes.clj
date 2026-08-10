@@ -19,7 +19,8 @@
              :post (handlers/start-execution datasource)}]
         ["/:id" {:get (handlers/get-execution datasource)}]
         ["/:id/cancel" {:post (handlers/cancel-execution datasource)}]
-        ["/:id/resume" {:post (handlers/resume-execution datasource)}]]
+        ["/:id/resume" {:post (handlers/resume-execution datasource)}]
+        ["/:id/retry" {:post (handlers/retry-execution datasource)}]]
        ["/health" {:get handlers/health-check}]]
       {:data {:muuntaja m/instance
               :middleware [muuntaja/format-middleware

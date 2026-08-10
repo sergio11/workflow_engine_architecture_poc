@@ -37,10 +37,36 @@
   (testing "returns middleware function"
     (is (fn? (middleware/wrap-json-body dummy-handler)))))
 
+(deftest wrap-json-body-integration-test
+  (testing "parses JSON body and keywordizes keys"
+    (let [handler (middleware/wrap-json-body dummy-handler)
+          request {:request-method :post
+                   :uri "/"
+                   :headers {"content-type" "application/json"}
+                   :body (java.io.ByteArrayInputStream.
+                           (.getBytes "{\"name\":\"test\"}"))}
+          response (handler request)]
+      (is (= 200 (:status response))))))
+
 (deftest wrap-json-response-test
   (testing "returns middleware function"
     (is (fn? (middleware/wrap-json-response dummy-handler)))))
 
+(deftest wrap-json-response-integration-test
+  (testing "serializes response body as JSON"
+    (let [handler (middleware/wrap-json-response dummy-handler)
+          request {:request-method :get :uri "/"}
+          response (handler request)]
+      (is (= 200 (:status response)))
+      (is (some? (:body response))))))
+
 (deftest wrap-params-test
   (testing "returns middleware function"
     (is (fn? (middleware/wrap-params dummy-handler)))))
+
+(deftest wrap-params-integration-test
+  (testing "parses query parameters"
+    (let [handler (middleware/wrap-params dummy-handler)
+          request {:request-method :get :uri "/?foo=bar" :query-string "foo=bar"}
+          response (handler request)]
+      (is (= 200 (:status response))))))

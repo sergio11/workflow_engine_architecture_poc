@@ -1,6 +1,7 @@
 (ns workflow-engine.api.middleware
   (:require [ring.middleware.json :as ring-json]
-            [ring.middleware.params :as params]))
+            [ring.middleware.params :as params]
+            [clojure.tools.logging :as log]))
 
 (defn wrap-json-body [handler]
   (ring-json/wrap-json-body handler {:keywords? true :bigdecimals? false}))
@@ -16,6 +17,7 @@
     (try
       (handler request)
       (catch Exception e
+        (log/error e "Unhandled exception")
         {:status 500
          :body {:error (.getMessage e)}}))))
 

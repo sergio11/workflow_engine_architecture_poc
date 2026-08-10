@@ -3,13 +3,15 @@
             [workflow-engine.persistence.db :as db]
             [workflow-engine.persistence.db-config :as config]
             [workflow-engine.persistence.workflow-repo :as repo]
-            [workflow-engine.workflow.model :as model]))
+            [workflow-engine.workflow.model :as model]
+            [workflow-engine.worker.registry :as registry]))
 
 (def test-datasource (atom nil))
 
 (defn db-fixture [f]
   (let [ds (db/create-datasource (config/test-config))]
     (reset! test-datasource ds)
+    (registry/clear-registry!)
     (db/execute! ds ["DELETE FROM events"])
     (db/execute! ds ["DELETE FROM executions"])
     (db/execute! ds ["DELETE FROM workflows"])
@@ -20,7 +22,8 @@
         (db/execute! ds ["DELETE FROM executions"])
         (db/execute! ds ["DELETE FROM workflows"])
         (db/close-datasource! ds)
-        (reset! test-datasource nil)))))
+        (reset! test-datasource nil)
+        (registry/clear-registry!)))))
 
 (use-fixtures :once db-fixture)
 
@@ -51,3 +54,17 @@
           _ (repo/delete-workflow! @test-datasource "del-wf")
           result (repo/get-workflow @test-datasource "del-wf")]
       (is (nil? result)))))
+
+(deftest save-and-get-workflow-with-handlers-test
+  (testing "workflow with handlers is preserved through save/load cycle"
+    (let [handler-fn (fn [ctx] {:result "from-registry"})
+          wf (model/make-workflow "handler-wf" "Handler WF" 1
+               [(model/make-step :s1 :task handler-fn)
+                (model/make-step :s2 :task handler-fn)])
+          _ (doseq [s (:steps wf)]
+              (registry/register-handler! (:id s) (:handler s)))
+          _ (repo/save-workflow! @test-datasource wf)
+          retrieved (repo/get-workflow @test-datasource "handler-wf")]
+      (is (= 2 (count (:steps retrieved))))
+      (is (some? (:handler (first (:steps retrieved)))))
+      (is (= {:result "from-registry"} ((:handler (first (:steps retrieved))) {}))))))

@@ -7,11 +7,11 @@
 
 (defn task-step
   [id handler]
-  [id :task handler nil nil])
+  (model/make-step id :task handler nil nil))
 
 (defn task-step-with-retry
   [id handler retry timeout]
-  [id :task handler retry timeout])
+  (model/make-step id :task handler retry timeout))
 
 (defn wait-step
   [id duration]

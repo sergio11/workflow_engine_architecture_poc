@@ -14,21 +14,6 @@
         result))
     (handler context)))
 
-(defn execute-with-retry
-  [handler context retry-policy]
-  (loop [attempt 0]
-    (let [result (try
-                   (execute-with-timeout handler context nil)
-                   (catch Exception e
-                     {:error (.getMessage e)}))]
-      (if (and (:error result)
-               (retry/should-retry? retry-policy attempt))
-        (let [delay-ms (retry/retry-delay retry-policy attempt)]
-          (log/info "Step failed, retrying in" delay-ms "ms (attempt" (inc attempt) "/" (:max-attempts retry-policy) ")")
-          (Thread/sleep delay-ms)
-          (recur (inc attempt)))
-        result))))
-
 (defn execute-step
   [handler context step]
   (let [retry-policy (retry/step-retry-policy step)

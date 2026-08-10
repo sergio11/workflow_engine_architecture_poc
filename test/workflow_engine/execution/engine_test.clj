@@ -100,3 +100,34 @@
           step3 (engine/execute-step! @test-datasource step2 test-workflow)]
       (is (= :completed (:status step3)))
       (is (nil? (:current-step step3))))))
+
+(deftest execute-step-failure-test
+  (testing "handles step exception and sets status to failed"
+    (let [fail-wf (dsl/linear-workflow "fail-wf" "Fail" 1
+                    [[:fail-step :task (fn [ctx] (throw (Exception. "step error")))]])
+          _ (workflow-repo/save-workflow! @test-datasource fail-wf)
+          exec (engine/start-execution! @test-datasource fail-wf {})
+          running (assoc exec :status :running)
+          result (engine/execute-step! @test-datasource running fail-wf)]
+      (is (= :failed (:status result))))))
+
+(deftest cancel-pending-execution-test
+  (testing "cancels a pending execution"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {})]
+      (is (= :pending (:status exec)))
+      (let [cancelled (engine/cancel-execution! @test-datasource (:execution-id exec))]
+        (is (= :cancelled (:status cancelled)))))))
+
+(deftest cancel-waiting-execution-test
+  (testing "cancels a waiting execution"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {})]
+      (db/execute! @test-datasource ["UPDATE executions SET status = 'waiting' WHERE id = ?" (:execution-id exec)])
+      (let [cancelled (engine/cancel-execution! @test-datasource (:execution-id exec))]
+        (is (= :cancelled (:status cancelled)))))))
+
+(deftest retry-without-current-step-test
+  (testing "retries from first step when current-step is nil"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {})]
+      (db/execute! @test-datasource ["UPDATE executions SET status = 'failed', current_step = NULL WHERE id = ?" (:execution-id exec)])
+      (let [retried (engine/retry-execution! @test-datasource (:execution-id exec) test-workflow)]
+        (is (= :completed (:status retried)))))))

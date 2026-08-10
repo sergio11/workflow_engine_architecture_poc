@@ -4,13 +4,15 @@
             [workflow-engine.persistence.db :as db]
             [workflow-engine.persistence.db-config :as config]
             [workflow-engine.persistence.workflow-repo :as wf-repo]
-            [workflow-engine.workflow.model :as model]))
+            [workflow-engine.workflow.model :as model]
+            [workflow-engine.worker.registry :as registry]))
 
 (def test-datasource (atom nil))
 
 (defn db-fixture [f]
   (let [ds (db/create-datasource (config/test-config))]
     (reset! test-datasource ds)
+    (registry/clear-registry!)
     (db/execute! ds ["DELETE FROM events"])
     (db/execute! ds ["DELETE FROM executions"])
     (db/execute! ds ["DELETE FROM workflows"])
@@ -21,7 +23,8 @@
         (db/execute! ds ["DELETE FROM executions"])
         (db/execute! ds ["DELETE FROM workflows"])
         (db/close-datasource! ds)
-        (reset! test-datasource nil)))))
+        (reset! test-datasource nil)
+        (registry/clear-registry!)))))
 
 (use-fixtures :once db-fixture)
 
@@ -147,3 +150,31 @@
     (let [handler (handlers/resume-execution @test-datasource)
           response (handler {:path-params {:id "nonexistent"} :body {:workflow-id "resume-wf"}})]
       (is (= 404 (:status response))))))
+
+(deftest create-workflow-validation-test
+  (testing "returns 400 for workflow without name"
+    (let [handler (handlers/create-workflow @test-datasource)
+          response (handler {:body {:steps [[:s1 :task]]}})]
+      (is (= 400 (:status response)))
+      (is (some? (get-in response [:body :details])))))
+  (testing "returns 400 for workflow without steps"
+    (let [handler (handlers/create-workflow @test-datasource)
+          response (handler {:body {:name "Empty"}})]
+      (is (= 400 (:status response))))))
+
+(deftest retry-execution-test
+  (testing "retries a failed execution"
+    (let [handler-fn (fn [_] {:ok true})
+          wf (model/make-workflow "retry-wf" "Retry WF" 1
+               [(model/make-step :s1 :task handler-fn)])]
+      (doseq [s (:steps wf)]
+        (registry/register-handler! (:id s) (:handler s)))
+      (wf-repo/save-workflow! @test-datasource wf))
+    (let [start-handler (handlers/start-execution @test-datasource)
+          start-res (start-handler {:body {:workflow-id "retry-wf" :input {}}})
+          exec-id (get-in start-res [:body :execution-id])
+          _ (db/execute! @test-datasource ["UPDATE executions SET status = 'failed', current_step = 's1' WHERE id = ?" exec-id])
+          retry-handler (handlers/retry-execution @test-datasource)
+          response (retry-handler {:path-params {:id exec-id} :body {:workflow-id "retry-wf"}})]
+      (is (= 200 (:status response)))
+      (is (= :completed (keyword (get-in response [:body :status])))))))
