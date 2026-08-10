@@ -1,0 +1,17 @@
+# ---- Demo Image ----
+FROM docker.io/library/clojure:temurin-21-tools-deps
+
+WORKDIR /app
+
+# Copy dependency files first (cache layer)
+COPY deps.edn /app/
+
+# Pre-download dependencies
+RUN clojure -P
+
+# Copy source code
+COPY src /app/src
+COPY demo /app/demo
+
+# Default: interactive shell for CLI demo
+CMD ["bash", "-c", "echo 'FlowForge Demo Ready' && echo 'Run: clojure -M:demo -m demo.core' && echo 'Or connect nREPL to port 7888' && tail -f /dev/null"]

@@ -1,0 +1,66 @@
+services:
+  db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: flowforge-demo-db
+    environment:
+      POSTGRES_USER: workflow_engine
+      POSTGRES_PASSWORD: workflow_dev
+      POSTGRES_DB: workflow_engine
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+      - pgdata-demo:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow_engine"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  demo:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.demo
+    container_name: flowforge-demo
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/workflow_engine
+      DB_USER: workflow_engine
+      DB_PASSWORD: workflow_dev
+      APP_PORT: "3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    stdin_open: true
+    tty: true
+    ports:
+      - "7888:7888"
+    volumes:
+      - ..:/app:Z
+      - maven-cache-demo:/root/.m2
+    working_dir: /app
+
+  nrepl:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.demo
+    container_name: flowforge-nrepl
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/workflow_engine
+      DB_USER: workflow_engine
+      DB_PASSWORD: workflow_dev
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "7888:7888"
+    volumes:
+      - ..:/app:Z
+      - maven-cache-demo:/root/.m2
+    working_dir: /app
+    command: ["clojure", "-M:demo", "-m", "nrepl.cmdline", "--middleware", "[cider.nrepl/cider-middleware]"]
+    profiles:
+      - repl
+
+volumes:
+  pgdata-demo:
+  maven-cache-demo:
