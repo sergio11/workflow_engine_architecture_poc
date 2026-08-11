@@ -53,3 +53,23 @@
           handler-fn (fn [_] (throw (Exception. "no-retry-error")))
           result (handler/execute-step handler-fn {} step)]
       (is (= "no-retry-error" (:error result))))))
+
+(deftest execute-step-retry-exhausted-test
+  (testing "returns error when all retry attempts fail"
+    (let [call-count (atom 0)
+          step (model/make-step :s1 :task nil
+                                {:max-attempts 3 :base-delay 10 :delay-fn retry/no-delay} nil)
+          handler-fn (fn [_]
+                       (swap! call-count inc)
+                       (throw (Exception. "always-fail")))
+          result (handler/execute-step handler-fn {} step)]
+      (is (= 3 @call-count))
+      (is (:error result))
+      (is (= "always-fail" (:error result))))))
+
+(deftest execute-step-no-retry-with-timeout-success-test
+  (testing "executes without retry but with timeout that succeeds"
+    (let [step (model/make-step :s1 :task nil nil 5000)
+          handler-fn (fn [_] {:success true})
+          result (handler/execute-step handler-fn {} step)]
+      (is (= {:success true} result)))))

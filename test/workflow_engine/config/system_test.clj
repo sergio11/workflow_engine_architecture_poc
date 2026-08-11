@@ -1,11 +1,25 @@
 (ns workflow-engine.config.system-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [integrant.core :as ig]
             [workflow-engine.config.system :as system]
             [workflow-engine.persistence.db :as db]
             [workflow-engine.persistence.db-config :as config]
             [workflow-engine.events.publisher :as pub]
-            [workflow-engine.metrics.collector :as metrics]))
+            [workflow-engine.metrics.collector :as metrics]
+            [workflow-engine.api.server :as server]))
+
+(defn cleanup-fixture [f]
+  (pub/clear-subscribers!)
+  (metrics/clear-metrics!)
+  (reset! server/server nil)
+  (try
+    (f)
+    (finally
+      (pub/clear-subscribers!)
+      (metrics/clear-metrics!)
+      (reset! server/server nil))))
+
+(use-fixtures :each cleanup-fixture)
 
 (deftest db-init-and-halt-test
   (testing "init and halt db component"
@@ -36,3 +50,51 @@
     (metrics/inc-counter! :test-counter)
     (ig/init-key :workflow-engine/metrics {})
     (is (= 0 (metrics/get-counter :test-counter)))))
+
+(deftest server-init-test
+  (testing "init server component starts server with datasource"
+    (with-redefs [server/start-server! (fn [ds] {:server :mock-server})]
+      (let [result (ig/init-key :workflow-engine/server {:datasource :test-ds})]
+        (is (= {:server :mock-server} result))))))
+
+(deftest server-halt-test
+  (testing "halt-key! stops server"
+    (let [stopped? (atom false)
+          mock-server (proxy [org.eclipse.jetty.server.Server] []
+                        (stop [this] (reset! stopped? true)))]
+      (ig/halt-key! :workflow-engine/server {:server mock-server})
+      (is (true? @stopped?)))))
+
+(deftest server-halt-nil-test
+  (testing "halt-key! with nil server does nothing"
+    (ig/halt-key! :workflow-engine/server {:server nil})
+    (is true "no error with nil server")))
+
+(deftest system-config-test
+  (testing "system-config has correct keys and dependencies"
+    (is (contains? system/system-config :workflow-engine.config.system/db))
+    (is (contains? system/system-config :workflow-engine.config.system/publisher))
+    (is (contains? system/system-config :workflow-engine.config.system/metrics))
+    (is (contains? system/system-config :workflow-engine.config.system/server))
+    (let [server-config (get system/system-config :workflow-engine.config.system/server)]
+      (is (some? (:datasource server-config))))))
+
+(deftest start-and-stop-system-test
+  (testing "start-system! and stop-system! work with mocked server"
+    (let [mock-jetty (proxy [org.eclipse.jetty.server.Server] [])]
+      (with-redefs [server/start-server! (fn [ds] {:server mock-jetty})]
+        (let [sys (system/start-system!)]
+          (is (some? sys))
+          (is (some? (get sys :workflow-engine.config.system/db)))
+          (is (some? (get sys :workflow-engine.config.system/publisher)))
+          (is (some? (get sys :workflow-engine.config.system/metrics)))
+          (is (some? (get sys :workflow-engine.config.system/server)))
+          (system/stop-system! sys)
+          (is true "system stopped without error"))))))
+
+(deftest db-init-from-env-test
+  (testing "init db uses from-env when no db-config provided"
+    (with-redefs [config/from-env (fn [] (config/test-config))]
+      (let [datasource (ig/init-key :workflow-engine/db {})]
+        (is (some? datasource))
+        (ig/halt-key! :workflow-engine/db datasource)))))

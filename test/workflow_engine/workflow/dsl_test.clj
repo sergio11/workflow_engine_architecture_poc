@@ -84,3 +84,39 @@
     (let [steps [[:a :task nil nil nil]]
           wf (dsl/linear-workflow "t" "T" 1 steps)]
       (is (nil? (dsl/get-step-by-id wf :missing))))))
+
+(deftest wait-step-handler-invocation-test
+  (testing "wait step handler returns expected result"
+    (let [step (dsl/wait-step :pause 10)
+          result ((:handler step) {})]
+      (is (= {:waited 10} result)))))
+
+(deftest decision-step-handler-true-test
+  (testing "decision step handler with true condition"
+    (let [step (dsl/decision-step :check (fn [ctx] true) :vip :basic)
+          result ((:handler step) {})]
+      (is (= :vip result)))))
+
+(deftest decision-step-handler-false-test
+  (testing "decision step handler with false condition"
+    (let [step (dsl/decision-step :check (fn [ctx] false) :vip :basic)
+          result ((:handler step) {})]
+      (is (= :basic result)))))
+
+(deftest parallel-step-handler-invocation-test
+  (testing "parallel step handler runs sub-steps"
+    (let [sub-steps [{:handler (fn [ctx] :x)} {:handler (fn [ctx] :y)}]
+          step (dsl/parallel-step :par sub-steps)
+          result ((:handler step) {})]
+      (is (= [:x :y] result)))))
+
+(deftest next-step-last-element-test
+  (testing "next-step returns nil when at last element of multi-step workflow"
+    (let [steps [[:a :task nil nil nil] [:b :task nil nil nil]]
+          wf (dsl/linear-workflow "t" "T" 1 steps)]
+      (is (nil? (dsl/next-step wf :b))))))
+
+(deftest get-steps-single-step-test
+  (testing "get-steps on single step workflow"
+    (let [wf (dsl/linear-workflow "t" "T" 1 [[:only :task nil nil nil]])]
+      (is (= 1 (count (dsl/get-steps wf)))))))

@@ -1,5 +1,5 @@
 (ns workflow-engine.scheduler.core-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.core.async :as async]
             [workflow-engine.scheduler.core :as scheduler]
             [workflow-engine.scheduler.channels :as channels]
@@ -72,3 +72,40 @@
       (Thread/sleep 100)
       (is true "processor consumed without error"))
     (channels/close-all!)))
+
+(deftest start-scheduler-default-arity-test
+  (testing "start-scheduler! with 1 arg defaults to 1 worker"
+    (let [sched (scheduler/start-scheduler! nil)]
+      (is (some? sched))
+      (is (= 1 (count (:workers sched))))
+      (is (some? (:processor sched)))
+      (scheduler/stop-scheduler!))))
+
+(deftest worker-unhandled-exception-test
+  (testing "worker catch block handles unhandled exceptions from process-work!"
+    (with-redefs [scheduler/process-work! (fn [_ _] (throw (Exception. "unhandled-error")))]
+      (let [sched (scheduler/start-scheduler! nil 1)
+            work-item {:handler-fn (fn [_] {:ok true})
+                       :context {}
+                       :step (model/make-step :s1 :task (fn [_] {:ok true}))}]
+        (async/>!! channels/work-ch work-item)
+        (let [result (async/alt!
+                       channels/result-ch ([v] v)
+                       (async/timeout 3000) :timeout)]
+          (is (not= :timeout result))
+          (is (some? (:error result))))
+        (scheduler/stop-scheduler!)))))
+
+(deftest process-work-with-context-test
+  (testing "passes datasource and context correctly"
+    (let [captured-ds (atom nil)
+          original-process scheduler/process-work!]
+      (with-redefs [scheduler/process-work!
+                    (fn [ds work-item]
+                      (reset! captured-ds ds)
+                      (original-process ds work-item))]
+        (let [result (scheduler/process-work! :my-ds {:handler-fn (fn [_] {:ok true})
+                                                       :context {:x 1}
+                                                       :step (model/make-step :s1 :task (fn [_] {:ok true}))})]
+          (is (= :my-ds @captured-ds))
+          (is (= {:ok true} (:result result))))))))

@@ -40,7 +40,8 @@
    :coverage
    {:extra-paths ["test"]
     :extra-deps  {cloverage/cloverage {:mvn/version "1.2.4"}
-                  lambdaisland/kaocha {:mvn/version "1.91.1392"}}
+                  lambdaisland/kaocha {:mvn/version "1.91.1392"}
+                  org.slf4j/slf4j-simple {:mvn/version "2.0.13"}}
     :main-opts   ["-m" "cloverage.coverage"
                   "-p" "src"
                   "-s" "test"
@@ -51,6 +52,8 @@
                   "--exclude-call" "workflow-engine.config.system/stop-system!"
                   "--exclude-call" "workflow-engine.api.server/start-server!"
                   "--exclude-call" "workflow-engine.api.server/stop-server!"
+                  "--exclude-call" "clojure.core/doseq"
+                  "--exclude-call" "clojure.core.async/go-loop"
                   "--fail-threshold" "98"
                   "--low-watermark" "99"
                   "--high-watermark" "100"

@@ -70,3 +70,74 @@
           request {:request-method :get :uri "/?foo=bar" :query-string "foo=bar"}
           response (handler request)]
       (is (= 200 (:status response))))))
+
+(deftest chained-middleware-test
+  (testing "all middleware layers work together"
+    (let [handler (-> dummy-handler
+                      middleware/wrap-exception
+                      middleware/wrap-cors
+                      middleware/wrap-params
+                      middleware/wrap-json-body
+                      middleware/wrap-json-response)
+          request {:request-method :get
+                   :uri "/test?x=1"
+                   :query-string "x=1"
+                   :body nil}
+          response (handler request)]
+      (is (= 200 (:status response)))
+      (is (= "*" (get-in response [:headers "Access-Control-Allow-Origin"])))
+      (is (some? (:body response)))))
+  (testing "exception handler works in chain"
+    (let [handler (-> throwing-handler
+                      middleware/wrap-exception
+                      middleware/wrap-cors
+                      middleware/wrap-params)
+          request {:request-method :get :uri "/"}
+          response (handler request)]
+      (is (= 500 (:status response)))
+      (is (= "*" (get-in response [:headers "Access-Control-Allow-Origin"]))))
+    (testing "JSON body middleware with POST request"
+      (let [handler (-> dummy-handler
+                        middleware/wrap-json-body
+                        middleware/wrap-json-response)
+            request {:request-method :post
+                     :uri "/"
+                     :headers {"content-type" "application/json"}
+                     :body (java.io.ByteArrayInputStream.
+                             (.getBytes "{\"key\":\"val\"}"))}
+            response (handler request)]
+        (is (= 200 (:status response)))))))
+
+(deftest wrap-json-body-only-test
+  (testing "wrap-json-body parses JSON and passes through"
+    (let [handler (middleware/wrap-json-body dummy-handler)
+          request {:request-method :put
+                   :uri "/resource"
+                   :headers {"content-type" "application/json"}
+                   :body (java.io.ByteArrayInputStream.
+                           (.getBytes "{\"update\":true}"))}
+          response (handler request)]
+      (is (= 200 (:status response))))))
+
+(deftest wrap-json-response-only-test
+  (testing "wrap-json-response serializes body"
+    (let [handler (-> (fn [req] {:status 200 :body {:nested {:key "val"}}})
+                      middleware/wrap-json-response)
+          response (handler {:request-method :get :uri "/"})]
+      (is (= 200 (:status response)))
+      (is (some? (:body response))))))
+
+(deftest wrap-exception-pass-through-test
+  (testing "exception middleware passes through non-exception responses"
+    (let [handler (middleware/wrap-exception dummy-handler)
+          response (handler {:request-method :post :uri "/data"})]
+      (is (= 200 (:status response)))
+      (is (= {:message "ok"} (:body response))))))
+
+(deftest wrap-exception-exception-message-test
+  (testing "exception middleware captures exception message"
+    (let [handler (middleware/wrap-exception
+                    (fn [req] (throw (ex-info "Custom error" {:code 42}))))
+          response (handler {:request-method :get :uri "/"})]
+      (is (= 500 (:status response)))
+      (is (= "Custom error" (get-in response [:body :error]))))))

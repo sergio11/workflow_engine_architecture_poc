@@ -38,3 +38,13 @@
                                :step-b (fn [_] {})
                                :step-c (fn [_] {})})
     (is (= 3 (count (registry/registered-handlers))))))
+
+(deftest register-handler-return-value-test
+  (testing "register-handler! returns the handler"
+    (let [handler (fn [_] {:ok true})]
+      (is (= handler (registry/register-handler! :step-x handler))))))
+
+(deftest unregister-nonexistent-test
+  (testing "unregistering non-existent handler is safe"
+    (registry/unregister-handler! :nonexistent)
+    (is (nil? (registry/get-handler :nonexistent)))))

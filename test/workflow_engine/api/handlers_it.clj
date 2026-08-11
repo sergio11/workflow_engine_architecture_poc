@@ -178,3 +178,58 @@
           response (retry-handler {:path-params {:id exec-id} :body {:workflow-id "retry-wf"}})]
       (is (= 200 (:status response)))
       (is (= :completed (keyword (get-in response [:body :status])))))))
+
+(deftest retry-execution-not-found-test
+  (testing "returns 404 for non-existent execution on retry"
+    (let [wf (model/make-workflow "retry-nf-wf" "Retry NF" 1
+               [(model/make-step :s1 :task (fn [_] {:ok true}))])]
+      (wf-repo/save-workflow! @test-datasource wf))
+    (let [handler (handlers/retry-execution @test-datasource)
+          response (handler {:path-params {:id "nonexistent"} :body {:workflow-id "retry-nf-wf"}})]
+      (is (= 404 (:status response))))))
+
+(deftest list-executions-no-workflow-id-test
+  (testing "returns empty when no workflow_id query param"
+    (let [handler (handlers/list-executions @test-datasource)
+          response (handler {:query-params {}})]
+      (is (= 200 (:status response)))
+      (is (= [] (:body response))))))
+
+(deftest resume-execution-not-resumable-test
+  (testing "returns 404 for non-waiting execution on resume"
+    (let [wf (model/make-workflow "resume-nr-wf" "Resume NR" 1
+               [(model/make-step :s1 :task (fn [_] {:ok true}))])]
+      (wf-repo/save-workflow! @test-datasource wf))
+    (let [start-handler (handlers/start-execution @test-datasource)
+          start-res (start-handler {:body {:workflow-id "resume-nr-wf" :input {}}})
+          exec-id (get-in start-res [:body :execution-id])
+          handler (handlers/resume-execution @test-datasource)
+          response (handler {:path-params {:id exec-id} :body {:workflow-id "resume-nr-wf"}})]
+      (is (= 404 (:status response))))))
+
+(deftest retry-execution-no-workflow-id-test
+  (testing "returns 404 when workflow-id is missing from body"
+    (let [handler (handlers/retry-execution @test-datasource)
+          response (handler {:path-params {:id "some-id"} :body {}})]
+      (is (= 404 (:status response))))))
+
+(deftest resume-execution-no-workflow-test
+  (testing "returns 404 when workflow does not exist"
+    (let [handler (handlers/resume-execution @test-datasource)
+          response (handler {:path-params {:id "some-id"} :body {:workflow-id "nonexistent"}})]
+      (is (= 404 (:status response))))))
+
+(deftest retry-execution-nonexistent-workflow-test
+  (testing "returns 404 when workflow does not exist on retry"
+    (let [handler (handlers/retry-execution @test-datasource)
+          response (handler {:path-params {:id "some-id"} :body {:workflow-id "nonexistent"}})]
+      (is (= 404 (:status response))))))
+
+(deftest create-workflow-with-handlers-test
+  (testing "creates workflow with handler functions"
+    (let [handler (handlers/create-workflow @test-datasource)
+          response (handler {:body {:name "Handler WF"
+                                    :version 1
+                                    :steps [[:s1 :task (fn [ctx] {:ok true})]]}})]
+      (is (= 201 (:status response)))
+      (is (some? (get-in response [:body :id]))))))

@@ -63,3 +63,32 @@
           _ (repo/update-execution! @test-datasource "exec-ctx" {:context {:step1 "new" :step2 "added"}})
           retrieved (repo/get-execution @test-datasource "exec-ctx")]
       (is (= {:step1 "new" :step2 "added"} (:context retrieved))))))
+
+(deftest update-started-at-test
+  (testing "updates execution with started_at timestamp"
+    (let [exec (model/make-execution "exec-sa" "test-wf" {})
+          _ (repo/save-execution! @test-datasource exec)
+          now (java.time.Instant/now)
+          _ (repo/update-execution! @test-datasource "exec-sa" {:status :running :started-at now})
+          retrieved (repo/get-execution @test-datasource "exec-sa")]
+      (is (= :running (:status retrieved)))
+      (is (some? (:started-at retrieved))))))
+
+(deftest update-completed-at-test
+  (testing "updates execution with completed_at timestamp"
+    (let [exec (model/make-execution "exec-ca" "test-wf" {})
+          _ (repo/save-execution! @test-datasource exec)
+          now (java.time.Instant/now)
+          _ (repo/update-execution! @test-datasource "exec-ca" {:status :completed :completed-at now})
+          retrieved (repo/get-execution @test-datasource "exec-ca")]
+      (is (= :completed (:status retrieved)))
+      (is (some? (:completed-at retrieved))))))
+
+(deftest get-execution-not-found-test
+  (testing "returns nil for non-existent execution"
+    (is (nil? (repo/get-execution @test-datasource "nonexistent-id")))))
+
+(deftest list-executions-empty-test
+  (testing "returns empty for workflow with no executions"
+    (let [results (repo/list-executions @test-datasource "no-exec-wf")]
+      (is (= [] results)))))

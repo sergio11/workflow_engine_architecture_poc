@@ -5,8 +5,7 @@
             [workflow-engine.workflow.dsl :as dsl]
             [workflow-engine.persistence.db :as db]
             [workflow-engine.persistence.db-config :as config]
-            [workflow-engine.persistence.workflow-repo :as workflow-repo]
-            [cheshire.core :as json]))
+            [workflow-engine.persistence.workflow-repo :as workflow-repo]))
 
 (def test-datasource (atom nil))
 (def test-workflow
@@ -131,3 +130,67 @@
       (db/execute! @test-datasource ["UPDATE executions SET status = 'failed', current_step = NULL WHERE id = ?" (:execution-id exec)])
       (let [retried (engine/retry-execution! @test-datasource (:execution-id exec) test-workflow)]
         (is (= :completed (:status retried)))))))
+
+(deftest execute-step-wait-type-test
+  (testing "wait step type transitions to completed"
+    (let [wait-wf (dsl/linear-workflow "wait-wf" "Wait" 1
+                    [[:wait-step :wait (fn [ctx] {:waited 100})]])
+          _ (workflow-repo/save-workflow! @test-datasource wait-wf)
+          exec (engine/start-execution! @test-datasource wait-wf {})
+          running (assoc exec :status :running)
+          result (engine/execute-step! @test-datasource running wait-wf)]
+      (is (= :completed (:status result))))))
+
+(deftest execute-step-decision-branch-test
+  (testing "decision step with branch returns completed"
+    (let [decision-wf (dsl/linear-workflow "dec-wf" "Decision" 1
+                        [[:dec-step :decision (fn [ctx] {:branch :vip})]])
+          _ (workflow-repo/save-workflow! @test-datasource decision-wf)
+          exec (engine/start-execution! @test-datasource decision-wf {})
+          running (assoc exec :status :running)
+          result (engine/execute-step! @test-datasource running decision-wf)]
+      (is (= :completed (:status result))))))
+
+(deftest execute-step-decision-no-branch-test
+  (testing "decision step without branch returns failed"
+    (let [decision-wf (dsl/linear-workflow "dec-fail-wf" "Decision Fail" 1
+                        [[:dec-step :decision (fn [ctx] {})]])
+          _ (workflow-repo/save-workflow! @test-datasource decision-wf)
+          exec (engine/start-execution! @test-datasource decision-wf {})
+          running (assoc exec :status :running)
+          result (engine/execute-step! @test-datasource running decision-wf)]
+      (is (= :failed (:status result))))))
+
+(deftest execute-step-parallel-success-test
+  (testing "parallel step with all success returns completed"
+    (let [par-wf (dsl/linear-workflow "par-wf" "Parallel" 1
+                   [[:par-step :parallel (fn [ctx] [{:ok true} {:ok true}])]])
+          _ (workflow-repo/save-workflow! @test-datasource par-wf)
+          exec (engine/start-execution! @test-datasource par-wf {})
+          running (assoc exec :status :running)
+          result (engine/execute-step! @test-datasource running par-wf)]
+      (is (= :completed (:status result))))))
+
+(deftest execute-step-parallel-error-test
+  (testing "parallel step with error returns failed"
+    (let [par-wf (dsl/linear-workflow "par-fail-wf" "Parallel Fail" 1
+                   [[:par-step :parallel (fn [ctx] [{:ok true} {:error "failed"}])]])
+          _ (workflow-repo/save-workflow! @test-datasource par-wf)
+          exec (engine/start-execution! @test-datasource par-wf {})
+          running (assoc exec :status :running)
+          result (engine/execute-step! @test-datasource running par-wf)]
+      (is (= :failed (:status result))))))
+
+(deftest advance-non-running-test
+  (testing "advance-execution! returns nil for completed execution"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {})]
+      (db/execute! @test-datasource ["UPDATE executions SET status = 'completed' WHERE id = ?" (:execution-id exec)])
+      (is (nil? (engine/advance-execution! @test-datasource (:execution-id exec) test-workflow))))))
+
+(deftest execute-step-no-current-step-test
+  (testing "execute-step! completes when current-step is nil (no more steps)"
+    (let [exec (engine/start-execution! @test-datasource test-workflow {:user "nil-step"})
+          _ (db/execute! @test-datasource ["UPDATE executions SET status = 'running', current_step = NULL WHERE id = ?" (:execution-id exec)])
+          loaded (engine/advance-execution! @test-datasource (:execution-id exec) test-workflow)]
+      (when loaded
+        (is (= :completed (:status loaded)))))))

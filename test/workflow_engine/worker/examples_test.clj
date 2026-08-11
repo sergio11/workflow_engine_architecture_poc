@@ -34,11 +34,31 @@
         (is (or (contains? result :success)
                 (contains? result :error)))))))
 
-(deftest slow-handler-test
-  (testing "returns result map"
-    (let [result (examples/slow-handler {})]
-      (is (= "completed after delay" (:result result))))))
-
 (deftest timeout-handler-test
   (testing "handler function exists and is callable"
     (is (fn? examples/timeout-handler))))
+
+(deftest timeout-handler-call-test
+  (testing "timeout-handler returns result after long sleep"
+    (let [result (future (examples/timeout-handler {}))
+          _ (Thread/sleep 100)]
+      (is (not (realized? result)))
+      (future-cancel result)
+      (is true "handler was running and got cancelled"))))
+
+(deftest slow-handler-test-direct
+  (testing "slow handler completes and returns result"
+    (let [result (examples/slow-handler {})]
+      (is (= "completed after delay" (:result result))))))
+
+(deftest process-payment-zero-test
+  (testing "process-payment with zero amount succeeds"
+    (let [result (examples/process-payment {:amount 0})]
+      (is (= 0 (:amount result)))
+      (is (= :completed (:status result))))))
+
+(deftest create-user-email-test
+  (testing "create-user preserves email"
+    (let [result (examples/create-user {:user-data {:email "a@b.com"}})]
+      (is (= "a@b.com" (:email result)))
+      (is (true? (:created result))))))

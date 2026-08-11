@@ -6,6 +6,9 @@
 
 (defonce server (atom nil))
 
+(defn get-port []
+  (or (some-> (System/getenv "APP_PORT") Integer/parseInt) 3000))
+
 (defn start-server!
   [datasource]
   (let [handler (-> (routes/api-routes datasource)
@@ -14,7 +17,7 @@
                     middleware/wrap-params
                     middleware/wrap-exception
                     middleware/wrap-cors)
-        port (or (some-> (System/getenv "APP_PORT") Integer/parseInt) 3000)]
+        port (get-port)]
     (log/info "Starting server on port" port)
     (let [srv (jetty/run-jetty handler {:port port :join? false})]
       (reset! server srv)

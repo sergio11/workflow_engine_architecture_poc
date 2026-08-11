@@ -88,3 +88,38 @@
     (is (= 5 (metrics/get-gauge :active-executions)))
     (metrics/update-active-executions! 0)
     (is (= 0 (metrics/get-gauge :active-executions)))))
+
+(deftest get-histogram-nil-test
+  (testing "returns nil for non-existent histogram"
+    (is (nil? (metrics/get-histogram :nonexistent)))))
+
+(deftest record-histogram-truncation-test
+  (testing "truncates to last 1000 values when exceeded"
+    (doseq [v (range 1 1101)]
+      (metrics/record-histogram! :trunc v))
+    (let [stats (metrics/get-histogram :trunc)]
+      (is (= 1000 (:count stats)))
+      (is (= 100 (:min stats)))
+      (is (= 1100 (:max stats))))))
+
+(deftest histogram-single-value-test
+  (testing "single value histogram has matching stats"
+    (metrics/record-histogram! :single 42)
+    (let [stats (metrics/get-histogram :single)]
+      (is (= 1 (:count stats)))
+      (is (= 42 (:sum stats)))
+      (is (= 42 (:mean stats)))
+      (is (= 42 (:min stats)))
+      (is (= 42 (:max stats)))
+      (is (= 42 (:p50 stats)))
+      (is (= 42 (:p95 stats)))
+      (is (= 42 (:p99 stats))))))
+
+(deftest record-step-execution-test
+  (testing "increments steps-executed and records histogram"
+    (metrics/record-step-execution! 100)
+    (metrics/record-step-execution! 200)
+    (is (= 2 (metrics/get-counter :steps-executed)))
+    (let [stats (metrics/get-histogram :step-duration)]
+      (is (= 2 (:count stats)))
+      (is (= 300 (:sum stats))))))

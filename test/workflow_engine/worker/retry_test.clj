@@ -65,3 +65,25 @@
   (testing "calculates delay using policy delay-fn"
     (let [policy (retry/make-retry-policy {:base-delay 500 :delay-fn retry/fixed-delay})]
       (is (= 500 (retry/retry-delay policy 2))))))
+
+(deftest retry-delay-with-exponential-test
+  (testing "calculates delay with exponential backoff"
+    (let [policy (retry/make-retry-policy {:base-delay 100 :delay-fn retry/exponential-backoff :max-delay 5000})]
+      (is (= 100 (retry/retry-delay policy 0)))
+      (is (= 200 (retry/retry-delay policy 1))))))
+
+(deftest make-retry-policy-with-delay-fn-test
+  (testing "uses provided delay-fn"
+    (let [policy (retry/make-retry-policy {:delay-fn retry/no-delay})]
+      (is (= retry/no-delay (:delay-fn policy))))))
+
+(deftest make-retry-policy-defaults-test
+  (testing "defaults include fixed-delay"
+    (let [policy (retry/make-retry-policy {})]
+      (is (= retry/fixed-delay (:delay-fn policy))))))
+
+(deftest make-retry-policy-no-delay-test
+  (testing "uses fixed-delay when delay is nil"
+    (let [policy (retry/make-retry-policy {:delay nil})]
+      (is (= retry/fixed-delay (:delay-fn policy)))
+      (is (= 3 (:max-attempts policy))))))

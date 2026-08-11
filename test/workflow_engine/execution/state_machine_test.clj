@@ -41,7 +41,11 @@
     (is (= :completed (sm/determine-next-status :wait {:waited 1000}))))
   (testing "decision"
     (is (= :completed (sm/determine-next-status :decision {:branch :vip}))))
+  (testing "decision without branch"
+    (is (= :failed (sm/determine-next-status :decision {}))))
   (testing "parallel all success"
     (is (= :completed (sm/determine-next-status :parallel [{:ok true} {:ok true}]))))
   (testing "parallel with error"
-    (is (= :failed (sm/determine-next-status :parallel [{:ok true} {:error "fail"}])))))
+    (is (= :failed (sm/determine-next-status :parallel [{:ok true} {:error "fail"}]))))
+  (testing "unknown step type defaults to failed"
+    (is (= :failed (sm/determine-next-status :unknown {})))))

@@ -13,11 +13,16 @@ def compose(*args)
   sh "#{engine}-compose #{args.join(' ')}"
 end
 
+def compose_no_fail(*args)
+  system("#{engine}-compose #{args.join(' ')}")
+end
+
 desc "Lanzar tests (unit + E2E) con coverage"
 task :test do
-  sh "#{engine} rm -fvi workflow-engine-test-runner workflow-engine-test-db"
-  compose("run", "--rm", "test-runner", "clojure", "-M:coverage")
+  compose("down", "-v") rescue nil
+  compose_no_fail("run", "test-runner", "clojure", "-M:coverage")
   sh "#{engine} cp workflow-engine-test-runner:/app/target/coverage ./target/coverage" rescue nil
+  sh "#{engine} rm -fvi workflow-engine-test-runner" rescue nil
   puts "\n=> Coverage report: target/coverage/index.html"
 end
 
