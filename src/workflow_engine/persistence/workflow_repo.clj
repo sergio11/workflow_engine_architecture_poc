@@ -40,7 +40,7 @@
   [datasource]
   (let [rows (db/execute! datasource
                ["SELECT id, name, version, created_at FROM workflows ORDER BY created_at DESC"])]
-    (mapv #(assoc % :definition nil) rows)))
+    rows))
 
 (defn delete-workflow!
   [datasource workflow-id]

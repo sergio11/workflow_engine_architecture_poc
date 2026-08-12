@@ -83,7 +83,7 @@
   (scenarios/register-all-scenarios!)
   (let [wf (scenarios/create-user-registration-workflow)
         _ (wf-repo/save-workflow! @datasource-ref wf)
-        exec (engine/start-execution! @datasource-ref wf {:user-data {:email "demo@flowforge.io" :name "Demo User"}})
+        exec (engine/start-execution! @datasource-ref wf {:user-data {:email "demo@workflow-engine.io" :name "Demo User"}})
         exec-id (:execution-id exec)]
     (fmt/print-key-value "Execution ID" (fmt/cyan-text exec-id))
     (fmt/print-key-value "Status" (fmt/status-badge (:status exec)))
@@ -199,7 +199,7 @@
 (defn print-welcome []
   (fmt/print-box
     [""
-     (str (fmt/bold-text " FlowForge Workflow Engine Demo"))
+     (str (fmt/bold-text " workflow-engine Demo"))
      ""
      (str (fmt/dim-text " Clojure + core.async + PostgreSQL"))
      (str (fmt/dim-text " Everything is data. Everything is composable."))

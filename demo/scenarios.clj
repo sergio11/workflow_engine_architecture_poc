@@ -21,7 +21,7 @@
          (Thread/sleep (+ 30 (rand-int 70)))
          {:sent true
           :to (:email last-result)
-          :subject "Welcome to FlowForge!"
+          :subject "Welcome to workflow-engine!"
           :body (str "Hello " (:name last-result) ", welcome!")}))
 
      "register-analytics"
@@ -34,16 +34,13 @@
 
 (defn create-user-registration-workflow []
   (register-user-handlers!)
-  (let [wf (dsl/linear-workflow
-             "wf-user-registration"
-             "User Registration Pipeline"
-             1
-             [["create-user" :task]
-              ["send-welcome-email" :task]
-              ["register-analytics" :task]])]
-    (doseq [step (:steps wf)]
-      (registry/register-handler! (:id step) (:handler step)))
-    wf))
+  (dsl/linear-workflow
+    "wf-user-registration"
+    "User Registration Pipeline"
+    1
+    [{:id "create-user" :type :task}
+     {:id "send-welcome-email" :type :task}
+     {:id "register-analytics" :type :task}]))
 
 (defn register-payment-handlers! []
   (registry/register-bulk!
@@ -76,17 +73,14 @@
 
 (defn create-payment-workflow []
   (register-payment-handlers!)
-  (let [retry-config {:max-attempts 3 :base-delay 500 :max-delay 5000}
-        wf (dsl/linear-workflow
-             "wf-payment-processing"
-             "Payment Processing"
-             1
-             [["validate-payment" :task]
-              ["process-payment" :task retry-config 10000]
-              ["confirm-payment" :task]])]
-    (doseq [step (:steps wf)]
-      (registry/register-handler! (:id step) (:handler step)))
-    wf))
+  (let [retry-config {:max-attempts 3 :base-delay 500 :max-delay 5000}]
+    (dsl/linear-workflow
+      "wf-payment-processing"
+      "Payment Processing"
+      1
+      [{:id "validate-payment" :type :task}
+       {:id "process-payment" :type :task :retry retry-config :timeout 10000}
+       {:id "confirm-payment" :type :task}])))
 
 (defn register-order-handlers! []
   (registry/register-bulk!
@@ -118,16 +112,13 @@
 
 (defn create-order-workflow []
   (register-order-handlers!)
-  (let [wf (dsl/linear-workflow
-             "wf-order-fulfillment"
-             "Order Fulfillment"
-             1
-             [["check-stock" :task]
-              ["ship-order" :task]
-              ["notify-backorder" :task]])]
-    (doseq [step (:steps wf)]
-      (registry/register-handler! (:id step) (:handler step)))
-    wf))
+  (dsl/linear-workflow
+    "wf-order-fulfillment"
+    "Order Fulfillment"
+    1
+    [{:id "check-stock" :type :task}
+     {:id "ship-order" :type :task}
+     {:id "notify-backorder" :type :task}]))
 
 (defn register-all-scenarios! []
   (register-user-handlers!)

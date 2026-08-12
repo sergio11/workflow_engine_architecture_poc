@@ -3,7 +3,11 @@
 
 (defn linear-workflow
   [id name version steps]
-  (model/make-workflow id name version (mapv #(apply model/make-step %) steps)))
+  (model/make-workflow id name version
+    (mapv #(if (map? %)
+             (model/step-from-map %)
+             (apply model/make-step %))
+          steps)))
 
 (defn task-step
   [id handler]

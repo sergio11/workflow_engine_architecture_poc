@@ -22,6 +22,10 @@
   ([id type handler retry timeout]
    (->Step id type handler retry timeout)))
 
+(defn step-from-map
+  [{:keys [id type handler retry timeout]}]
+  (->Step id (keyword type) handler retry timeout))
+
 (defn make-workflow
   [id name version steps]
   (->Workflow id name version steps {}))

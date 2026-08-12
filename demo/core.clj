@@ -16,7 +16,7 @@
 (defn print-menu []
   (fmt/print-box
     [""
-     (str (fmt/bold-text " FlowForge — Clojure Workflow Engine Demo"))
+     (str (fmt/bold-text " workflow-engine — Clojure Workflow Engine Demo"))
      ""
      (str (fmt/cyan-text " 1") ". User Registration Pipeline (linear)")
      (str (fmt/cyan-text " 2") ". Payment Processing (retry + flaky)")
@@ -34,10 +34,11 @@
   (scenarios/register-all-scenarios!)
   (let [wf (scenario-fn)
         _ (wf-repo/save-workflow! @repl/datasource-ref wf)
+        wf-db (wf-repo/get-workflow @repl/datasource-ref (:id wf))
         exec (engine/start-execution!
-               @repl/datasource-ref wf
+               @repl/datasource-ref wf-db
                (case (:id wf)
-                 "wf-user-registration" {:user-data {:email "demo@flowforge.io" :name "Demo User"}}
+                 "wf-user-registration" {:user-data {:email "demo@workflow-engine.io" :name "Demo User"}}
                  "wf-payment-processing" {:amount 99.99}
                  "wf-order-fulfillment" {:product-id "PROD-42" :quantity 2}))]
     (reset! last-execution-id (:execution-id exec))
@@ -46,9 +47,9 @@
     (fmt/print-key-value "Status" (fmt/status-badge (:status exec)))
     (println)
     (loop [current exec step-num 1]
-      (let [result (engine/execute-step! @repl/datasource-ref current wf)]
-        (fmt/print-step step-num (count (:steps wf))
-          (str (fmt/green-text (str "Step " (:current-step current) " \u2192 "))
+      (let [result (engine/execute-step! @repl/datasource-ref current wf-db)]
+        (fmt/print-step step-num (count (:steps wf-db))
+          (str (fmt/green-text (str "Step " (:current-step current) " → "))
                (fmt/status-badge (:status result))))
         (when (and result (:last-result (:context result)))
           (fmt/print-info (str "Result: " (pr-str (:last-result (:context result))))))
@@ -158,7 +159,7 @@
                 (recur))
         "7" (do (repl/demonstrate-repl-driven-dev) (recur))
         "8" (do (show-clojure-advantages) (recur))
-        "0" (do (fmt/print-success "Thanks for watching the FlowForge demo!")
+        "0" (do (fmt/print-success "Thanks for watching the workflow-engine demo!")
                    (fmt/print-info "Clojure: where data meets concurrency.")
                    (repl/teardown!))
         (do (fmt/print-warning (str "Invalid option: " input " — try 0-8"))

@@ -1,0 +1,52 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Clojure
+*.clj text diff=clojure
+*.cljs text diff=clojure
+*.cljc text diff=clojure
+*.edn text
+
+# Config
+*.yml text
+*.yaml text
+*.json text
+*.xml text
+
+# Shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Markdown
+*.md text diff=markdown
+*.markdown text diff=markdown
+
+# SQL
+*.sql text
+
+# Docker
+Dockerfile* text
+docker-compose*.yml text
+
+# Build
+Rakefile text eol=lf
+Gemfile text
+
+# Binary
+*.jar binary
+*.class binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+
+# Archives
+*.zip binary
+*.tar.gz binary
+
+# Documentation
+LICENSE text
+CONTRIBUTING.md text
+CHANGELOG.md text
+SECURITY.md text
+CODE_OF_CONDUCT.md text

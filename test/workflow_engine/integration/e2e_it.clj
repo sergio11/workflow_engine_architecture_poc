@@ -113,6 +113,90 @@
       (is (= :completed (:status step2)))
       (is (= {:greeted "World"} (get-in step2 [:context :last-result]))))))
 
+(deftest registry-handler-resolution-test
+  (testing "engine resolves handlers from registry for steps without inline handlers"
+    (let [ds @test-datasource
+          wf (dsl/linear-workflow "reg-wf" "Registry WF" 1
+                [["reg-step" :task]])
+          handler-called (atom 0)
+          _ (registry/register-handler! "reg-step"
+              (fn [_ctx] (swap! handler-called inc) {:ok true}))
+          _ (wf-repo/save-workflow! ds wf)
+          exec (engine/start-execution! ds wf {})
+          result (engine/execute-step! ds (assoc exec :status :running) wf)]
+      (is (= :completed (:status result)))
+      (is (= 1 @handler-called)))))
+
+(deftest no-handler-execution-test
+  (testing "execution fails cleanly when no handler is registered"
+    (let [ds @test-datasource
+          wf (dsl/linear-workflow "noh-wf" "No Handler" 1
+                [["orphan-step" :task]])
+          _ (wf-repo/save-workflow! ds wf)
+          exec (engine/start-execution! ds wf {})
+          result (engine/execute-step! ds (assoc exec :status :running) wf)]
+      (is (= :failed (:status result)))
+      (is (some? (:error (get-in result [:context :last-result])))))))
+
+(deftest retry-flaky-handler-test
+  (testing "flaky step retries through the worker until it succeeds"
+    (let [ds @test-datasource
+          attempts (atom 0)
+          wf (dsl/linear-workflow "retry-wf" "Retry WF" 1
+                [{:id "flaky-step" :type :task
+                  :retry {:max-attempts 3 :base-delay 10 :max-delay 100}}])
+          _ (registry/register-handler! "flaky-step"
+              (fn [_ctx]
+                (if (< (swap! attempts inc) 3)
+                  {:error "transient failure"}
+                  {:ok true})))
+          _ (wf-repo/save-workflow! ds wf)
+          exec (engine/start-execution! ds wf {})
+          result (engine/execute-step! ds (assoc exec :status :running) wf)]
+      (is (= :completed (:status result)))
+      (is (= 3 @attempts)))))
+
+(deftest retry-exhaustion-test
+  (testing "step that always fails is marked failed after retries are exhausted"
+    (let [ds @test-datasource
+          attempts (atom 0)
+          wf (dsl/linear-workflow "retry-fail-wf" "Retry Fail" 1
+                [{:id "always-fails" :type :task
+                  :retry {:max-attempts 2 :base-delay 10 :max-delay 100}}])
+          _ (registry/register-handler! "always-fails"
+              (fn [_ctx] (swap! attempts inc) (throw (ex-info "boom" {}))))
+          _ (wf-repo/save-workflow! ds wf)
+          exec (engine/start-execution! ds wf {})
+          result (engine/execute-step! ds (assoc exec :status :running) wf)]
+      (is (= :failed (:status result)))
+      (is (= 2 @attempts)))))
+
+(deftest step-timeout-test
+  (testing "step exceeding its timeout fails with a timeout error"
+    (let [ds @test-datasource
+          wf (dsl/linear-workflow "timeout-wf" "Timeout WF" 1
+                [{:id "slow-step" :type :task :timeout 300}])
+          _ (registry/register-handler! "slow-step"
+              (fn [_ctx] (Thread/sleep 2000) {:late true}))
+          _ (wf-repo/save-workflow! ds wf)
+          exec (engine/start-execution! ds wf {})
+          result (engine/execute-step! ds (assoc exec :status :running) wf)]
+      (is (= :failed (:status result)))
+      (is (some? (:error (get-in result [:context :last-result])))))))
+
+(deftest infrastructure-failure-test
+  (testing "infrastructure error during step start marks the execution failed"
+    (let [ds @test-datasource
+          wf (dsl/linear-workflow "infra-wf" "Infra WF" 1
+                [{:id "infra" :type :task}])
+          _ (registry/register-handler! "infra" (fn [_ctx] {:ok true}))
+          _ (wf-repo/save-workflow! ds wf)
+          exec (engine/start-execution! ds wf {})]
+      (with-redefs [events/record-step-started!
+                    (fn [& _args] (throw (ex-info "db down" {})))]
+        (let [result (engine/execute-step! ds (assoc exec :status :running) wf)]
+          (is (= :failed (:status result)))))))
+
 (deftest events-published-during-execution-test
   (testing "events are published to subscribers during execution"
     (let [ds @test-datasource
@@ -130,3 +214,67 @@
         (is (some #(= :step-completed (:type %)) @events-received))
         (finally
           (unsub))))))
+
+(deftest full-e2e-json-workflow-test
+  (testing "create workflow from JSON maps, load from DB, execute all steps to completion"
+    (let [ds @test-datasource
+          _ (registry/clear-registry!)
+          wf (dsl/linear-workflow "json-wf" "JSON WF" 1
+                [{:id "greet" :type :task}
+                 {:id "farewell" :type :task}])
+          _ (registry/register-handler! "greet"
+              (fn [ctx] {:greeting (str "Hello " (:name ctx))}))
+          _ (registry/register-handler! "farewell"
+              (fn [ctx] {:farewell (str "Goodbye " (:name ctx))}))
+          _ (wf-repo/save-workflow! ds wf)
+          loaded-wf (wf-repo/get-workflow ds "json-wf")
+          exec (engine/start-execution! ds loaded-wf {:name "World"})
+          step1 (engine/execute-step! ds (assoc exec :status :running) loaded-wf)
+          step2 (engine/execute-step! ds step1 loaded-wf)]
+      (is (= :completed (:status step2)))
+      (is (= :farewell (:current-step step1)))
+      (is (= {:greeting "Hello World"} (get-in step1 [:context :last-result])))
+      (is (= {:farewell "Goodbye World"} (get-in step2 [:context :last-result]))))))
+
+(deftest full-e2e-retry-from-registry-test
+  (testing "workflow with retry resolves handler from registry, retries on transient failure"
+    (let [ds @test-datasource
+          _ (registry/clear-registry!)
+          attempts (atom 0)
+          wf (dsl/linear-workflow "retry-reg-wf" "Retry Registry WF" 1
+                [{:id "flaky" :type :task
+                  :retry {:max-attempts 3 :base-delay 10 :max-delay 100}}
+                 {:id "stable" :type :task}])
+          _ (registry/register-handler! "flaky"
+              (fn [_ctx]
+                (if (< (swap! attempts inc) 3)
+                  {:error "transient failure"}
+                  {:ok true})))
+          _ (registry/register-handler! "stable"
+              (fn [_ctx] {:done true}))
+          _ (wf-repo/save-workflow! ds wf)
+          loaded-wf (wf-repo/get-workflow ds "retry-reg-wf")
+          exec (engine/start-execution! ds loaded-wf {})
+          step1 (engine/execute-step! ds (assoc exec :status :running) loaded-wf)
+          step2 (engine/execute-step! ds step1 loaded-wf)]
+      (is (= :completed (:status step2)))
+      (is (= 3 @attempts))
+      (is (true? (get-in step2 [:context :last-result :done])))))))
+
+(deftest full-e2e-timeout-from-registry-test
+  (testing "workflow with timeout resolves handler from registry, fails on slow execution"
+    (let [ds @test-datasource
+          _ (registry/clear-registry!)
+          wf (dsl/linear-workflow "timeout-reg-wf" "Timeout Registry WF" 1
+                [{:id "slow" :type :task :timeout 200}
+                 {:id "never" :type :task}])
+          _ (registry/register-handler! "slow"
+              (fn [_ctx] (Thread/sleep 2000) {:late true}))
+          _ (registry/register-handler! "never"
+              (fn [_ctx] {:reached true}))
+          _ (wf-repo/save-workflow! ds wf)
+          loaded-wf (wf-repo/get-workflow ds "timeout-reg-wf")
+          exec (engine/start-execution! ds loaded-wf {})
+          result (engine/execute-step! ds (assoc exec :status :running) loaded-wf)]
+      (is (= :failed (:status result)))
+      (is (some? (:error (get-in result [:context :last-result])))))))

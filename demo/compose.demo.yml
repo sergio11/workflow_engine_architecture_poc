@@ -1,7 +1,7 @@
 services:
   db:
     image: docker.io/library/postgres:16-alpine
-    container_name: flowforge-demo-db
+    container_name: workflow-engine-demo-db
     environment:
       POSTGRES_USER: workflow_engine
       POSTGRES_PASSWORD: workflow_dev
@@ -21,7 +21,7 @@ services:
     build:
       context: ..
       dockerfile: demo/Dockerfile.demo
-    container_name: flowforge-demo
+    container_name: workflow-engine-demo
     environment:
       DATABASE_URL: jdbc:postgresql://db:5432/workflow_engine
       DB_USER: workflow_engine
@@ -43,7 +43,7 @@ services:
     build:
       context: ..
       dockerfile: demo/Dockerfile.demo
-    container_name: flowforge-nrepl
+    container_name: workflow-engine-nrepl
     environment:
       DATABASE_URL: jdbc:postgresql://db:5432/workflow_engine
       DB_USER: workflow_engine

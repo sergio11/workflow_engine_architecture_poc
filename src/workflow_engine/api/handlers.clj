@@ -5,7 +5,8 @@
             [workflow-engine.workflow.dsl :as dsl]
             [workflow-engine.workflow.model :as model]
             [workflow-engine.worker.registry :as registry]
-            [workflow-engine.workflow.validator :as validator]))
+            [workflow-engine.workflow.validator :as validator]
+            [workflow-engine.version :as version]))
 
 (defn create-workflow
   [datasource]
@@ -15,7 +16,7 @@
                (str (java.util.UUID/randomUUID))
                (:name body)
                (or (:version body) 1)
-               (mapv #(apply model/make-step %) (:steps body)))
+               (mapv model/step-from-map (:steps body)))
           validation (validator/validate-workflow wf)]
       (if (:valid? validation)
         (do
@@ -44,7 +45,7 @@
   (fn [_request]
     (let [workflows (wf-repo/list-workflows datasource)]
       {:status 200
-       :body (mapv #(select-keys % [:id :name :version]) workflows)})))
+       :body (mapv #(select-keys % [:id :name :version :created_at]) workflows)})))
 
 (defn delete-workflow
   [datasource]
@@ -127,4 +128,4 @@
 
 (defn health-check [_request]
   {:status 200
-   :body {:status "ok" :version "0.1.0"}})
+   :body {:status "ok" :version version/version}})

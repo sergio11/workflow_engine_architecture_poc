@@ -7,6 +7,8 @@
             [workflow-engine.metrics.collector :as metrics]
             [workflow-engine.events.store :as event-store]
             [workflow-engine.events.publisher :as publisher]
+            [workflow-engine.worker.handler :as wh]
+            [workflow-engine.worker.registry :as registry]
             [clojure.tools.logging :as log]))
 
 (defn start-execution!
@@ -24,35 +26,54 @@
         _ (log/info "Started execution" (:execution-id execution) "for workflow" (:id workflow))]
     execution))
 
+(defn- resolve-handler
+  [step]
+  (or (:handler step)
+      (registry/get-handler (:id step))
+      (registry/get-handler (name (:id step)))))
+
 (defn execute-step!
   [datasource execution workflow]
   (let [current-step-id (:current-step execution)
         step (when current-step-id (dsl/get-step-by-id workflow current-step-id))]
     (if step
-      (let [start-time (System/currentTimeMillis)]
+      (let [start-time (System/currentTimeMillis)
+            handler-fn (resolve-handler step)]
         (try
           (event-store/record-step-started! datasource (:execution-id execution) current-step-id)
           (publisher/publish! {:type :step-started :execution-id (:execution-id execution) :step current-step-id})
-          (let [result ((:handler step) (:context execution))
+          (let [result (if handler-fn
+                         (wh/execute-step handler-fn (:context execution) step)
+                         {:error (str "No handler registered for step: " (:id step))})
                 duration-ms (- (System/currentTimeMillis) start-time)
                 new-status (sm/determine-next-status (:type step) result)
                 next-step (dsl/next-step workflow current-step-id)
                 updates (cond-> {:status new-status
                                  :context (ctx/merge-context (:context execution) {:last-result result})}
-                          next-step (assoc :current-step (:id next-step))
+                          (and next-step (not= new-status :failed)) (assoc :current-step (:id next-step))
                           (= new-status :completed) (assoc :completed-at (java.time.Instant/now)))]
             (repo/update-execution! datasource (:execution-id execution) updates)
-            (event-store/record-step-completed! datasource (:execution-id execution) current-step-id result)
-            (publisher/publish! {:type :step-completed :execution-id (:execution-id execution) :step current-step-id :result result})
             (metrics/record-step-execution! duration-ms)
-            (log/info "Step" current-step-id "completed with status" new-status)
-            (when-not next-step
-              (event-store/record-workflow-completed! datasource (:execution-id execution))
-              (publisher/publish! {:type :workflow-completed :execution-id (:execution-id execution)})
-              (metrics/record-workflow-completed!))
-            (assoc execution :status new-status
-                             :current-step (when next-step (:id next-step))
-                             :context (ctx/merge-context (:context execution) {:last-result result})))
+            (if (= new-status :failed)
+              (do
+                (event-store/record-step-failed! datasource (:execution-id execution) current-step-id (:error result))
+                (publisher/publish! {:type :step-failed :execution-id (:execution-id execution) :step current-step-id :error (:error result)})
+                (metrics/record-workflow-failed!)
+                (log/error "Step" current-step-id "failed:" (:error result))
+                (assoc execution :status :failed
+                                 :current-step nil
+                                 :context (ctx/merge-context (:context execution) {:last-result result})))
+              (do
+                (event-store/record-step-completed! datasource (:execution-id execution) current-step-id result)
+                (publisher/publish! {:type :step-completed :execution-id (:execution-id execution) :step current-step-id :result result})
+                (log/info "Step" current-step-id "completed with status" new-status)
+                (when-not next-step
+                  (event-store/record-workflow-completed! datasource (:execution-id execution))
+                  (publisher/publish! {:type :workflow-completed :execution-id (:execution-id execution)})
+                  (metrics/record-workflow-completed!))
+                (assoc execution :status new-status
+                                 :current-step (when next-step (:id next-step))
+                                 :context (ctx/merge-context (:context execution) {:last-result result})))))
           (catch Exception e
             (let [duration-ms (- (System/currentTimeMillis) start-time)]
               (log/error "Step" current-step-id "failed:" (.getMessage e))
