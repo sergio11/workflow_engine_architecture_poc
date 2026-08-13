@@ -2,7 +2,7 @@
 
 (defrecord Workflow [id name version steps metadata])
 
-(defrecord Step [id type handler retry timeout])
+(defrecord Step [id type handler retry timeout branches])
 
 (defrecord Execution [execution-id workflow-id status current-step started-at updated-at context history])
 
@@ -16,15 +16,17 @@
 
 (defn make-step
   ([id type]
-   (->Step id type nil nil nil))
+   (->Step id type nil nil nil nil))
   ([id type handler]
-   (->Step id type handler nil nil))
+   (->Step id type handler nil nil nil))
   ([id type handler retry timeout]
-   (->Step id type handler retry timeout)))
+   (->Step id type handler retry timeout nil))
+  ([id type handler retry timeout branches]
+   (->Step id type handler retry timeout branches)))
 
 (defn step-from-map
-  [{:keys [id type handler retry timeout]}]
-  (->Step id (keyword type) handler retry timeout))
+  [{:keys [id type handler retry timeout branches]}]
+  (->Step id (keyword type) handler retry timeout branches))
 
 (defn make-workflow
   [id name version steps]

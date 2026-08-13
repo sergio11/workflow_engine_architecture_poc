@@ -46,9 +46,23 @@
                          (wh/execute-step handler-fn (:context execution) step)
                          {:error (str "No handler registered for step: " (:id step))})
                 duration-ms (- (System/currentTimeMillis) start-time)
-                new-status (sm/determine-next-status (:type step) result)
-                next-step (dsl/next-step workflow current-step-id)
-                updates (cond-> {:status new-status
+              new-status (sm/determine-next-status (:type step) result)
+              next-step (cond
+                          (and (= (:type step) :decision)
+                               (= new-status :completed)
+                               (:branch result))
+                          (let [branch-kw (:branch result)
+                                branch-step-id (get-in step [:branches branch-kw])]
+                            (when branch-step-id
+                              (dsl/get-step-by-id workflow branch-step-id)))
+
+                          (and (= (:type step) :decision)
+                               (= new-status :failed))
+                          nil
+
+                          :else
+                          (dsl/next-step workflow current-step-id))
+              updates (cond-> {:status new-status
                                  :context (ctx/merge-context (:context execution) {:last-result result})}
                           (and next-step (not= new-status :failed)) (assoc :current-step (:id next-step))
                           (= new-status :completed) (assoc :completed-at (java.time.Instant/now)))]

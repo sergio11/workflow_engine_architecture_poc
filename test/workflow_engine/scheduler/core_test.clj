@@ -3,7 +3,9 @@
             [clojure.core.async :as async]
             [workflow-engine.scheduler.core :as scheduler]
             [workflow-engine.scheduler.channels :as channels]
-            [workflow-engine.workflow.model :as model]))
+            [workflow-engine.workflow.model :as model]
+            [workflow-engine.persistence.db :as db]
+            [workflow-engine.persistence.db-config :as db-config]))
 
 (deftest start-and-stop-scheduler-test
   (testing "scheduler can start and stop"
@@ -109,3 +111,14 @@
                                                        :step (model/make-step :s1 :task (fn [_] {:ok true}))})]
           (is (= :my-ds @captured-ds))
           (is (= {:ok true} (:result result))))))))
+
+(deftest scheduler-lifecycle-test
+  (testing "can start and stop scheduler"
+    (let [ds (db/create-datasource 
+               (db-config/test-config))
+          scheduler-handle (scheduler/start-scheduler! ds 1)]
+      (is (some? scheduler-handle))
+      (is (contains? scheduler-handle :workers))
+      (is (contains? scheduler-handle :processor))
+      (scheduler/stop-scheduler! scheduler-handle)
+      (db/close-datasource! ds))))

@@ -194,3 +194,19 @@
           loaded (engine/advance-execution! @test-datasource (:execution-id exec) test-workflow)]
       (when loaded
         (is (= :completed (:status loaded)))))))
+
+(deftest execute-step-decision-branching-test
+  (testing "decision step routes to correct branch"
+    (let [branch-wf (dsl/linear-workflow "branch-wf" "Branch" 1
+                     [{:id :check :type :decision
+                       :handler (fn [ctx] {:branch (if (= "vip" (:user ctx)) :vip :basic)})
+                       :branches {:vip :vip-step :basic :basic-step}}
+                      {:id :vip-step :type :task :handler (fn [ctx] {:tier "vip"})}
+                      {:id :basic-step :type :task :handler (fn [ctx] {:tier "basic"})}])
+          _ (workflow-repo/save-workflow! @test-datasource branch-wf)
+          exec-vip (engine/start-execution! @test-datasource branch-wf {:user "vip"})
+          result-vip (engine/execute-step! @test-datasource (assoc exec-vip :status :running) branch-wf)
+          exec-basic (engine/start-execution! @test-datasource branch-wf {:user "other"})
+          result-basic (engine/execute-step! @test-datasource (assoc exec-basic :status :running) branch-wf)]
+      (is (= :vip-step (:current-step result-vip)))
+      (is (= :basic-step (:current-step result-basic))))))

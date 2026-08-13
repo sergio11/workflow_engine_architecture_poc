@@ -21,7 +21,8 @@
         ["/:id/cancel" {:post (handlers/cancel-execution datasource)}]
         ["/:id/resume" {:post (handlers/resume-execution datasource)}]
         ["/:id/retry" {:post (handlers/retry-execution datasource)}]]
-       ["/health" {:get handlers/health-check}]]
+       ["/health" {:get handlers/health-check}]
+        ["/metrics" {:get handlers/get-metrics}]]
       {:data {:muuntaja m/instance
               :middleware [muuntaja/format-middleware
                           coercion/coerce-exceptions-middleware]}})

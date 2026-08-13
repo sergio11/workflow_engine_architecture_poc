@@ -4,7 +4,8 @@
             [workflow-engine.persistence.db-config :as config]
             [workflow-engine.api.server :as server]
             [workflow-engine.events.publisher :as pub]
-            [workflow-engine.metrics.collector :as metrics]))
+            [workflow-engine.metrics.collector :as metrics]
+            [workflow-engine.scheduler.core :as scheduler]))
 
 (defmethod ig/init-key :workflow-engine/db [_ {:keys [db-config] :as _opts}]
   (let [datasource (db/create-datasource (or db-config (config/from-env)))]
@@ -22,6 +23,13 @@
 (defmethod ig/init-key :workflow-engine/metrics [_ _]
   (metrics/clear-metrics!))
 
+(defmethod ig/init-key :workflow-engine/scheduler [_ {:keys [datasource]}]
+  (scheduler/start-scheduler! datasource 2))
+
+(defmethod ig/halt-key! :workflow-engine/scheduler [_ scheduler-handle]
+  (when scheduler-handle
+    (scheduler/stop-scheduler! scheduler-handle)))
+
 (defmethod ig/init-key :workflow-engine/server [_ {:keys [datasource]}]
   (server/start-server! datasource))
 
@@ -33,6 +41,7 @@
   {::db {}
    ::publisher {}
    ::metrics {}
+   ::scheduler {:datasource (ig/ref ::db)}
    ::server {:datasource (ig/ref ::db)}})
 
 (defn start-system! []

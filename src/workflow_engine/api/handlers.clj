@@ -6,6 +6,7 @@
             [workflow-engine.workflow.model :as model]
             [workflow-engine.worker.registry :as registry]
             [workflow-engine.workflow.validator :as validator]
+            [workflow-engine.metrics.collector :as metrics]
             [workflow-engine.version :as version]))
 
 (defn create-workflow
@@ -129,3 +130,9 @@
 (defn health-check [_request]
   {:status 200
    :body {:status "ok" :version version/version}})
+
+(defn get-metrics [_request]
+  {:status 200
+   :body {:counters (metrics/snapshot-counters)
+          :gauges (metrics/snapshot-gauges)
+          :histograms (metrics/snapshot-histograms)}})

@@ -23,11 +23,11 @@
 
 (defn decision-step
   [id condition true-branch false-branch]
-  (model/make-step id :decision (fn [ctx] (if (condition ctx) true-branch false-branch)) nil nil))
+  (model/make-step id :decision (fn [ctx] {:branch (if (condition ctx) true-branch false-branch)}) nil nil {true-branch true-branch false-branch false-branch}))
 
 (defn parallel-step
   [id steps]
-  (model/make-step id :parallel (fn [ctx] (mapv #((:handler %) ctx) steps)) nil nil))
+  (model/make-step id :parallel (fn [ctx] (doall (pmap #((:handler %) ctx) steps))) nil nil))
 
 (defn get-steps
   [workflow]

@@ -233,3 +233,12 @@
                                     :steps [[:s1 :task (fn [ctx] {:ok true})]]}})]
       (is (= 201 (:status response)))
       (is (some? (get-in response [:body :id]))))))
+
+(deftest get-metrics-test
+  (testing "returns metrics snapshot"
+    (let [handler handlers/get-metrics
+          response (handler {})]
+      (is (= 200 (:status response)))
+      (is (map? (get-in response [:body :counters])))
+      (is (map? (get-in response [:body :gauges])))
+      (is (map? (get-in response [:body :histograms]))))))

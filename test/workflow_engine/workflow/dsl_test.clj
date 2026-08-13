@@ -95,13 +95,13 @@
   (testing "decision step handler with true condition"
     (let [step (dsl/decision-step :check (fn [ctx] true) :vip :basic)
           result ((:handler step) {})]
-      (is (= :vip result)))))
+      (is (= {:branch :vip} result)))))
 
 (deftest decision-step-handler-false-test
   (testing "decision step handler with false condition"
     (let [step (dsl/decision-step :check (fn [ctx] false) :vip :basic)
           result ((:handler step) {})]
-      (is (= :basic result)))))
+      (is (= {:branch :basic} result)))))
 
 (deftest parallel-step-handler-invocation-test
   (testing "parallel step handler runs sub-steps"
@@ -120,3 +120,14 @@
   (testing "get-steps on single step workflow"
     (let [wf (dsl/linear-workflow "t" "T" 1 [[:only :task nil nil nil]])]
       (is (= 1 (count (dsl/get-steps wf)))))))
+
+(deftest parallel-step-parallel-execution-test
+  (testing "parallel step executes handlers concurrently"
+    (let [sub-steps [{:handler (fn [ctx] (Thread/sleep 10) :a)}
+                     {:handler (fn [ctx] (Thread/sleep 10) :b)}]
+          step (dsl/parallel-step :par sub-steps)
+          start (System/currentTimeMillis)
+          result ((:handler step) {})
+          elapsed (- (System/currentTimeMillis) start)]
+      (is (= #{:a :b} (set result)))
+      (is (< elapsed 15)))))

@@ -123,3 +123,47 @@
     (let [stats (metrics/get-histogram :step-duration)]
       (is (= 2 (:count stats)))
       (is (= 300 (:sum stats))))))
+
+(deftest snapshot-counters-test
+  (testing "returns only counters from snapshot"
+    (metrics/inc-counter! :req)
+    (metrics/inc-counter! :req)
+    (metrics/set-gauge! :g 1)
+    (let [counters (metrics/snapshot-counters)]
+      (is (map? counters))
+      (is (= 2 (:req counters)))
+      (is (not (contains? counters :g))))))
+
+(deftest snapshot-gauges-test
+  (testing "returns only gauges from snapshot"
+    (metrics/inc-counter! :req)
+    (metrics/set-gauge! :connections 42)
+    (let [gauges (metrics/snapshot-gauges)]
+      (is (map? gauges))
+      (is (= 42 (:connections gauges)))
+      (is (not (contains? gauges :req))))))
+
+(deftest snapshot-histograms-all-test
+  (testing "returns all histograms with computed stats"
+    (metrics/record-histogram! :latency 100)
+    (metrics/record-histogram! :latency 200)
+    (let [histograms (metrics/snapshot-histograms)]
+      (is (map? histograms))
+      (is (contains? histograms :latency))
+      (let [lat-stats (get histograms :latency)]
+        (is (= 2 (:count lat-stats)))
+        (is (= 300 (:sum lat-stats)))
+        (is (= 150 (:mean lat-stats)))))))
+
+(deftest snapshot-histograms-specific-test
+  (testing "returns specific histogram stats"
+    (metrics/record-histogram! :latency 100)
+    (metrics/record-histogram! :latency 200)
+    (let [stats (metrics/snapshot-histograms :latency)]
+      (is (map? stats))
+      (is (= 2 (:count stats)))
+      (is (= 300 (:sum stats))))))
+
+(deftest snapshot-histograms-nil-test
+  (testing "returns nil for non-existent histogram"
+    (is (nil? (metrics/snapshot-histograms :nonexistent)))))

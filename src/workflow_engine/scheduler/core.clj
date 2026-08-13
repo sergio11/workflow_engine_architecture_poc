@@ -45,6 +45,8 @@
 
 (defn stop-scheduler!
   "Stop the scheduler by closing channels"
-  []
-  (channels/close-all!)
-  (log/info "Scheduler stopped"))
+  ([] (channels/close-all!) (log/info "Scheduler stopped"))
+  ([scheduler-handle]
+   (when scheduler-handle
+     (channels/close-all!)
+     (log/info "Scheduler stopped"))))

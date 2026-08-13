@@ -6,7 +6,8 @@
             [workflow-engine.persistence.db-config :as config]
             [workflow-engine.events.publisher :as pub]
             [workflow-engine.metrics.collector :as metrics]
-            [workflow-engine.api.server :as server]))
+            [workflow-engine.api.server :as server]
+            [workflow-engine.scheduler.core :as scheduler]))
 
 (defn cleanup-fixture [f]
   (pub/clear-subscribers!)
@@ -98,3 +99,24 @@
       (let [datasource (ig/init-key :workflow-engine/db {})]
         (is (some? datasource))
         (ig/halt-key! :workflow-engine/db datasource)))))
+
+(deftest scheduler-init-test
+  (testing "init scheduler component with datasource"
+    (let [datasource (db/create-datasource (config/test-config))
+          scheduler-handle (ig/init-key :workflow-engine/scheduler {:datasource datasource})]
+      (is (some? scheduler-handle))
+      (is (contains? scheduler-handle :workers))
+      (is (contains? scheduler-handle :processor))
+      (ig/halt-key! :workflow-engine/scheduler scheduler-handle)
+      (db/close-datasource! datasource))))
+
+(deftest scheduler-halt-nil-test
+  (testing "halt-key! with nil scheduler does nothing"
+    (ig/halt-key! :workflow-engine/scheduler nil)
+    (is true "no error with nil scheduler")))
+
+(deftest system-config-scheduler-test
+  (testing "system-config includes scheduler with datasource dependency"
+    (is (contains? system/system-config :workflow-engine.config.system/scheduler))
+    (let [scheduler-config (get system/system-config :workflow-engine.config.system/scheduler)]
+      (is (some? (:datasource scheduler-config))))))

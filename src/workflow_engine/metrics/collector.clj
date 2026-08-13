@@ -51,6 +51,15 @@
 (defn snapshot []
   @metrics)
 
+(defn snapshot-counters [] (:counters @metrics))
+(defn snapshot-gauges [] (:gauges @metrics))
+(defn snapshot-histograms
+  ([] (snapshot-histograms :all))
+  ([name]
+   (if (= name :all)
+     (into {} (map (fn [[k v]] [k (get-histogram k)]) (:histograms @metrics)))
+     (get-histogram name))))
+
 (defn record-workflow-started! []
   (inc-counter! :workflows-started))
 
