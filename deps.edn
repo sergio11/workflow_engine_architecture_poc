@@ -67,7 +67,7 @@
     :main-opts ["test/debug_script.clj"]}
 
    :demo
-   {:extra-paths ["src" "demo"]
+   {:extra-paths ["src" "resources" "."]
     :main-opts ["-m" "demo.core"]}
 
    :demo-repl

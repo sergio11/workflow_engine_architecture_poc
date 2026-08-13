@@ -9,7 +9,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./initdb:/docker-entrypoint-initdb.d:ro
+      - ../initdb:/docker-entrypoint-initdb.d:ro
       - pgdata-demo:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U workflow_engine"]
@@ -38,6 +38,7 @@ services:
       - ..:/app:Z
       - maven-cache-demo:/root/.m2
     working_dir: /app
+    command: ["clojure", "-M:demo", "-m", "demo.core", "--run-all"]
 
   nrepl:
     build:

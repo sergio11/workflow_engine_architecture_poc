@@ -38,11 +38,11 @@
     (.stop server)))
 
 (def system-config
-  {::db {}
-   ::publisher {}
-   ::metrics {}
-   ::scheduler {:datasource (ig/ref ::db)}
-   ::server {:datasource (ig/ref ::db)}})
+  {:workflow-engine/db {}
+   :workflow-engine/publisher {}
+   :workflow-engine/metrics {}
+   :workflow-engine/scheduler {:datasource (ig/ref :workflow-engine/db)}
+   :workflow-engine/server {:datasource (ig/ref :workflow-engine/db)}})
 
 (defn start-system! []
   (ig/init system-config))

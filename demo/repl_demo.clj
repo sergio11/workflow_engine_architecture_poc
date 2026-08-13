@@ -23,7 +23,7 @@
   (println)
   (let [sys (system/start-system!)]
     (reset! system-ref sys)
-    (reset! datasource-ref (::system/db sys))
+    (reset! datasource-ref (:workflow-engine/db sys))
     (fmt/print-success "System started — Integrant manages all components")
     (fmt/print-info "Datasource connected to PostgreSQL")
     (fmt/print-info "Event publisher ready (atom-based pub/sub)")

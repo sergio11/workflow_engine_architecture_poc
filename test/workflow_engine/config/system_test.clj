@@ -73,11 +73,11 @@
 
 (deftest system-config-test
   (testing "system-config has correct keys and dependencies"
-    (is (contains? system/system-config :workflow-engine.config.system/db))
-    (is (contains? system/system-config :workflow-engine.config.system/publisher))
-    (is (contains? system/system-config :workflow-engine.config.system/metrics))
-    (is (contains? system/system-config :workflow-engine.config.system/server))
-    (let [server-config (get system/system-config :workflow-engine.config.system/server)]
+    (is (contains? system/system-config :workflow-engine/db))
+    (is (contains? system/system-config :workflow-engine/publisher))
+    (is (contains? system/system-config :workflow-engine/metrics))
+    (is (contains? system/system-config :workflow-engine/server))
+    (let [server-config (get system/system-config :workflow-engine/server)]
       (is (some? (:datasource server-config))))))
 
 (deftest start-and-stop-system-test
@@ -86,10 +86,10 @@
       (with-redefs [server/start-server! (fn [ds] {:server mock-jetty})]
         (let [sys (system/start-system!)]
           (is (some? sys))
-          (is (some? (get sys :workflow-engine.config.system/db)))
-          (is (some? (get sys :workflow-engine.config.system/publisher)))
-          (is (some? (get sys :workflow-engine.config.system/metrics)))
-          (is (some? (get sys :workflow-engine.config.system/server)))
+          (is (some? (get sys :workflow-engine/db)))
+          (is (some? (get sys :workflow-engine/publisher)))
+          (is (some? (get sys :workflow-engine/metrics)))
+          (is (some? (get sys :workflow-engine/server)))
           (system/stop-system! sys)
           (is true "system stopped without error"))))))
 
@@ -117,6 +117,6 @@
 
 (deftest system-config-scheduler-test
   (testing "system-config includes scheduler with datasource dependency"
-    (is (contains? system/system-config :workflow-engine.config.system/scheduler))
-    (let [scheduler-config (get system/system-config :workflow-engine.config.system/scheduler)]
+    (is (contains? system/system-config :workflow-engine/scheduler))
+    (let [scheduler-config (get system/system-config :workflow-engine/scheduler)]
       (is (some? (:datasource scheduler-config))))))

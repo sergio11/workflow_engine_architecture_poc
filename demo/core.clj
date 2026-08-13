@@ -13,6 +13,8 @@
 
 (defonce last-execution-id (atom nil))
 
+(declare show-metrics show-events)
+
 (defn print-menu []
   (fmt/print-box
     [""
@@ -116,7 +118,7 @@
             "\u2728"]
            ["Immutability by Default"
             "Every state transition returns new data. No race conditions.\n    Perfect for concurrent workflow execution."
-            "\U0001f6e1"]
+             "\ud83d\udee1"]
            ["REPL-Driven Development"
             "Modify handlers at runtime. Test interactively. No restart cycles.\n    Closest thing to mind-melding with your system."
             "\u2699"]
@@ -125,16 +127,16 @@
             "\u26a1"]
            ["Functional Composition"
             "Compose handlers with comp, partial,->>. Small functions\n    combined into powerful pipelines."
-            "\U0001f9e9"]
+             "\ud83e\udde9"]
            ["Java Interop"
             "Access entire JVM ecosystem. PostgreSQL drivers, JSON libs,\n    HTTP clients — all native Clojure deps."
             "\u2615"]
            ["Spec & Validation"
             "clojure.spec for data validation. Workflows validated\n    before execution. Runtime checks are free."
-            "\U0001f50d"]
+             "\ud83d\udde9"]
            ["Event Sourcing"
             "Every state change is an immutable event. Full audit trail.\n    Replay, debug, and analyze execution history."
-            "\U0001f4cb"]]]
+             "\ud83d\udce9"]]]
     (println (str "  " icon " " (fmt/bold-text (fmt/magenta-text title)) " " (fmt/dim-text "\u2014")))
     (println (str "     " (fmt/dim-text desc)))
     (println)))
@@ -165,5 +167,41 @@
         (do (fmt/print-warning (str "Invalid option: " input " — try 0-8"))
             (recur))))))
 
-(defn -main [& _args]
-  (start-demo!))
+(defn -main [& args]
+  (let [opts (set args)]
+    (if (or (opts "--help") (opts "-h"))
+      (do
+        (println "Usage: clojure -M:demo -m demo.core [OPTIONS]")
+        (println)
+        (println "Options:")
+        (println "  (none)         Start interactive menu")
+        (println "  --run-all      Run all 3 scenarios sequentially, show metrics & events")
+        (println "  --scenario N   Run scenario N (1=User Registration, 2=Payment, 3=Order)")
+        (println "  --help, -h     Show this help message"))
+      (do
+        (repl/setup!)
+        (try
+          (cond
+            (opts "--run-all")
+            (run-all-scenarios!)
+
+            (some opts ["--scenario" "-s"])
+            (let [num (loop [a args]
+                        (when (seq a)
+                          (let [[f s] a]
+                            (cond
+                              (#{"--scenario" "-s"} f) s
+                              (and s (re-matches #"\d" (subs s 0 1))) s
+                              :else (recur (rest a))))))]
+              (case num
+                "1" (run-linear-scenario scenarios/create-user-registration-workflow "Scenario 1: User Registration Pipeline")
+                "2" (run-linear-scenario scenarios/create-payment-workflow "Scenario 2: Payment Processing with Retry")
+                "3" (run-linear-scenario scenarios/create-order-workflow "Scenario 3: Order Fulfillment")
+                (do (println (str "Unknown scenario: " num " — use 1, 2, or 3"))
+                    (System/exit 1))))
+
+            :else
+            (start-demo!))
+          (finally
+            (repl/teardown!)))))))
+
