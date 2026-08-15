@@ -62,3 +62,10 @@
     (let [result (examples/create-user {:user-data {:email "a@b.com"}})]
       (is (= "a@b.com" (:email result)))
       (is (true? (:created result))))))
+
+(deftest timeout-handler-completes-test
+  (testing "timeout-handler returns expected result when allowed to complete"
+    (let [result (future (examples/timeout-handler {}))
+          val (deref result 12000 ::timeout)]
+      (is (not= ::timeout val))
+      (is (= "should timeout" (:result val))))))

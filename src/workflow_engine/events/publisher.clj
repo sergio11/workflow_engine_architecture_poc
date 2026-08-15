@@ -1,4 +1,5 @@
-(ns workflow-engine.events.publisher)
+(ns workflow-engine.events.publisher
+  (:require [clojure.tools.logging :as log]))
 
 (defonce subscribers (atom {}))
 
@@ -33,7 +34,7 @@
       (try
         (handler-fn event)
         (catch Exception e
-          (println "Error in event subscriber:" (.getMessage e)))))))
+          (log/error e "Error in event subscriber:"))))))
 
 (defn clear-subscribers!
   []

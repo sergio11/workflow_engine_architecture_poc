@@ -4,6 +4,7 @@
             [demo.repl-demo :as repl]
             [workflow-engine.workflow.dsl :as dsl]
             [workflow-engine.execution.engine :as engine]
+            [workflow-engine.execution.adapters :as adapters]
             [workflow-engine.persistence.workflow-repo :as wf-repo]
             [workflow-engine.events.store :as event-store]
             [workflow-engine.metrics.collector :as metrics]
@@ -34,10 +35,12 @@
 (defn run-linear-scenario [scenario-fn title]
   (fmt/print-header title)
   (scenarios/register-all-scenarios!)
-  (let [wf (scenario-fn)
+  (let [{:keys [store recorder publisher metrics]} @repl/adapters-ref
+        wf (scenario-fn)
         _ (wf-repo/save-workflow! @repl/datasource-ref wf)
         wf-db (wf-repo/get-workflow @repl/datasource-ref (:id wf))
         exec (engine/start-execution!
+               store recorder publisher metrics
                @repl/datasource-ref wf-db
                (case (:id wf)
                  "wf-user-registration" {:user-data {:email "demo@workflow-engine.io" :name "Demo User"}}
@@ -49,7 +52,7 @@
     (fmt/print-key-value "Status" (fmt/status-badge (:status exec)))
     (println)
     (loop [current exec step-num 1]
-      (let [result (engine/execute-step! @repl/datasource-ref current wf-db)]
+      (let [result (engine/execute-step! store recorder publisher metrics @repl/datasource-ref current wf-db)]
         (fmt/print-step step-num (count (:steps wf-db))
           (str (fmt/green-text (str "Step " (:current-step current) " → "))
                (fmt/status-badge (:status result))))
@@ -204,4 +207,3 @@
             (start-demo!))
           (finally
             (repl/teardown!)))))))
-

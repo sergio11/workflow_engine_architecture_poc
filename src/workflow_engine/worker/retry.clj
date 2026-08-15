@@ -19,13 +19,12 @@
    :max-delay 30000})
 
 (defn make-retry-policy
-  [{:keys [max-attempts delay base-delay max-delay]
+  [{:keys [max-attempts delay delay-fn base-delay max-delay]
     :or {max-attempts 3
-         delay fixed-delay
          base-delay 1000
          max-delay 30000}}]
   {:max-attempts max-attempts
-   :delay-fn (or delay fixed-delay)
+   :delay-fn (or delay-fn delay fixed-delay)
    :base-delay base-delay
    :max-delay max-delay})
 

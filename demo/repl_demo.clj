@@ -3,6 +3,7 @@
             [workflow-engine.workflow.dsl :as dsl]
             [workflow-engine.workflow.model :as model]
             [workflow-engine.execution.engine :as engine]
+            [workflow-engine.execution.adapters :as adapters]
             [workflow-engine.execution.context :as ctx]
             [workflow-engine.persistence.workflow-repo :as wf-repo]
             [workflow-engine.persistence.execution-repo :as exec-repo]
@@ -15,6 +16,7 @@
 
 (defonce system-ref (atom nil))
 (defonce datasource-ref (atom nil))
+(defonce adapters-ref (atom nil))
 
 (defn setup! []
   (fmt/print-header "REPL-DRIVEN DEMO — Workflow Engine")
@@ -24,6 +26,10 @@
   (let [sys (system/start-system!)]
     (reset! system-ref sys)
     (reset! datasource-ref (:workflow-engine/db sys))
+    (reset! adapters-ref {:store (:workflow-engine/store sys)
+                          :recorder (:workflow-engine/recorder sys)
+                          :publisher (:workflow-engine/publisher sys)
+                          :metrics (:workflow-engine/metrics sys)})
     (fmt/print-success "System started — Integrant manages all components")
     (fmt/print-info "Datasource connected to PostgreSQL")
     (fmt/print-info "Event publisher ready (atom-based pub/sub)")
@@ -35,6 +41,7 @@
     (system/stop-system! sys)
     (reset! system-ref nil)
     (reset! datasource-ref nil)
+    (reset! adapters-ref nil)
     (fmt/print-success "System stopped — all resources released")))
 
 (defn show-dsl-usage []
@@ -81,9 +88,10 @@
   (println (fmt/bold-text "  Execute a 3-step linear workflow"))
   (println)
   (scenarios/register-all-scenarios!)
-  (let [wf (scenarios/create-user-registration-workflow)
+  (let [{:keys [store recorder publisher metrics]} @adapters-ref
+        wf (scenarios/create-user-registration-workflow)
         _ (wf-repo/save-workflow! @datasource-ref wf)
-        exec (engine/start-execution! @datasource-ref wf {:user-data {:email "demo@workflow-engine.io" :name "Demo User"}})
+        exec (engine/start-execution! store recorder publisher metrics @datasource-ref wf {:user-data {:email "demo@workflow-engine.io" :name "Demo User"}})
         exec-id (:execution-id exec)]
     (fmt/print-key-value "Execution ID" (fmt/cyan-text exec-id))
     (fmt/print-key-value "Status" (fmt/status-badge (:status exec)))
@@ -91,9 +99,9 @@
     (fmt/print-info "Executing steps sequentially...")
     (println)
     (loop [current exec step-num 1]
-      (let [result (engine/execute-step! @datasource-ref current wf)]
+      (let [result (engine/execute-step! store recorder publisher metrics @datasource-ref current wf)]
         (fmt/print-step step-num 3
-          (str (fmt/green-text (str "Step " (:current-step current) " \u2192 "))
+          (str (fmt/green-text (str "Step " (:current-step current) " → "))
                (fmt/status-badge (:status result))))
         (if (and result (not= :completed (:status result)) (not= :failed (:status result)))
           (recur result (inc step-num))
@@ -149,7 +157,8 @@
 ;; Next execution uses the NEW handler immediately")
   (println)
   (scenarios/register-all-scenarios!)
-  (let [original-handler (registry/get-handler "create-user")]
+  (let [{:keys [store recorder publisher metrics]} @adapters-ref
+        original-handler (registry/get-handler "create-user")]
     (registry/register-handler! "create-user"
       (fn [ctx]
         (Thread/sleep (+ 50 (rand-int 100)))
@@ -158,8 +167,8 @@
          :version "1.1-live"}))
     (let [wf (scenarios/create-user-registration-workflow)
           _ (wf-repo/save-workflow! @datasource-ref wf)
-          exec (engine/start-execution! @datasource-ref wf {:user-data {:email "patch@test.io" :name "Patch Test"}})]
-      (engine/execute-step! @datasource-ref exec wf)
+          exec (engine/start-execution! store recorder publisher metrics @datasource-ref wf {:user-data {:email "patch@test.io" :name "Patch Test"}})]
+      (engine/execute-step! store recorder publisher metrics @datasource-ref exec wf)
       (println)
       (let [exec-after (exec-repo/get-execution @datasource-ref (:execution-id exec))]
         (fmt/print-success "Handler hot-patched successfully!")
@@ -170,17 +179,18 @@
   (println (fmt/bold-text "  Flaky handler with retry policy"))
   (println)
   (scenarios/register-all-scenarios!)
-  (let [wf (scenarios/create-payment-workflow)
+  (let [{:keys [store recorder publisher metrics]} @adapters-ref
+        wf (scenarios/create-payment-workflow)
         _ (wf-repo/save-workflow! @datasource-ref wf)
-        exec (engine/start-execution! @datasource-ref wf {:amount 99.99})
+        exec (engine/start-execution! store recorder publisher metrics @datasource-ref wf {:amount 99.99})
         exec-id (:execution-id exec)]
     (fmt/print-key-value "Execution ID" (fmt/cyan-text exec-id))
     (fmt/print-key-value "Input" "{:amount 99.99}")
     (println)
     (loop [current exec step-num 1]
-      (let [result (engine/execute-step! @datasource-ref current wf)]
+      (let [result (engine/execute-step! store recorder publisher metrics @datasource-ref current wf)]
         (fmt/print-step step-num 3
-          (str (fmt/green-text (str "Step " (:current-step current) " \u2192 "))
+          (str (fmt/green-text (str "Step " (:current-step current) " → "))
                (fmt/status-badge (:status result))))
         (if (and result (not= :completed (:status result)) (not= :failed (:status result)))
           (recur result (inc step-num))

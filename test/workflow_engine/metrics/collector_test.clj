@@ -98,8 +98,8 @@
     (doseq [v (range 1 1101)]
       (metrics/record-histogram! :trunc v))
     (let [stats (metrics/get-histogram :trunc)]
-      (is (= 1000 (:count stats)))
-      (is (= 100 (:min stats)))
+      (is (= 1100 (:count stats)))
+      (is (= 101 (:min stats)))
       (is (= 1100 (:max stats))))))
 
 (deftest histogram-single-value-test

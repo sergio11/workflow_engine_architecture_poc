@@ -141,3 +141,26 @@
           response (handler {:request-method :get :uri "/"})]
       (is (= 500 (:status response)))
       (is (= "Custom error" (get-in response [:body :error]))))))
+
+(deftest wrap-cors-options-test
+  (testing "CORS headers present for OPTIONS request"
+    (let [handler (middleware/wrap-cors dummy-handler)
+          response (handler {:request-method :options :uri "/"})]
+      (is (= "*" (get-in response [:headers "Access-Control-Allow-Origin"])))
+      (is (= "GET, POST, PUT, DELETE, OPTIONS"
+             (get-in response [:headers "Access-Control-Allow-Methods"])))
+      (is (= "Content-Type, Authorization"
+             (get-in response [:headers "Access-Control-Allow-Headers"]))))))
+
+(deftest wrap-cors-post-test
+  (testing "CORS headers present for POST request"
+    (let [handler (middleware/wrap-cors dummy-handler)
+          response (handler {:request-method :post :uri "/api/data"})]
+      (is (= "*" (get-in response [:headers "Access-Control-Allow-Origin"])))
+      (is (= 200 (:status response))))))
+
+(deftest wrap-request-logging-output-test
+  (testing "logging does not interfere with request processing"
+    (let [handler (middleware/wrap-request-logging dummy-handler)
+          response (handler {:request-method :post :uri "/api/test"})]
+      (is (= 200 (:status response))))))

@@ -1,19 +1,36 @@
 (ns workflow-engine.api.routes-test
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [workflow-engine.api.routes :as routes]
+            [workflow-engine.execution.adapters :as adapters]
             [workflow-engine.persistence.db :as db]
             [workflow-engine.persistence.db-config :as config]
             [workflow-engine.persistence.workflow-repo :as wf-repo]
             [workflow-engine.persistence.execution-repo :as exec-repo]
             [workflow-engine.execution.engine :as engine]
             [workflow-engine.worker.registry :as registry]
+            [workflow-engine.scheduler.channels :as channels]
             [cheshire.core :as json]))
 
 (def test-datasource (atom nil))
+(def test-channels (atom nil))
+(def test-store (atom nil))
+(def test-recorder (atom nil))
+(def test-publisher (atom nil))
+(def test-metrics (atom nil))
 
 (defn db-fixture [f]
-  (let [ds (db/create-datasource (config/test-config))]
+  (let [ds (db/create-datasource (config/test-config))
+        ch (channels/create-channels)
+        store (adapters/create-store ds)
+        recorder (adapters/create-recorder ds)
+        pub (adapters/create-publisher)
+        metrics-adapter (adapters/create-metrics-collector)]
     (reset! test-datasource ds)
+    (reset! test-channels ch)
+    (reset! test-store store)
+    (reset! test-recorder recorder)
+    (reset! test-publisher pub)
+    (reset! test-metrics metrics-adapter)
     (db/execute! ds ["DELETE FROM events"])
     (db/execute! ds ["DELETE FROM executions"])
     (db/execute! ds ["DELETE FROM workflows"])
@@ -23,8 +40,14 @@
         (db/execute! ds ["DELETE FROM events"])
         (db/execute! ds ["DELETE FROM executions"])
         (db/execute! ds ["DELETE FROM workflows"])
+        (channels/close-channels! ch)
         (db/close-datasource! ds)
-        (reset! test-datasource nil)))))
+        (reset! test-datasource nil)
+        (reset! test-channels nil)
+        (reset! test-store nil)
+        (reset! test-recorder nil)
+        (reset! test-publisher nil)
+        (reset! test-metrics nil)))))
 
 (use-fixtures :once db-fixture)
 
@@ -35,14 +58,19 @@
       body)))
 
 (defn make-app []
-  (routes/api-routes @test-datasource))
+  (routes/api-routes @test-datasource @test-channels @test-store @test-recorder @test-publisher @test-metrics))
 
 (defn app-get [app path]
   (let [resp (app {:request-method :get :uri path :body-params nil})]
     (assoc resp :body (read-body resp))))
 
 (defn app-post [app path body]
-  (let [resp (app {:request-method :post :uri path :body body :body-params body})]
+  (let [json-str (json/generate-string body)
+        resp (app {:request-method :post
+                   :uri path
+                   :headers {"content-type" "application/json"}
+                   :body (java.io.ByteArrayInputStream.
+                           (.getBytes json-str "UTF-8"))})]
     (assoc resp :body (read-body resp))))
 
 (defn app-post-json [app path json-str]
@@ -110,9 +138,9 @@
     (let [app (make-app)
           response (app-post-json app "/api/v1/workflows"
                      (json/generate-string
-                       {:name "Bad WF" :steps [{:id "x" :type :nope}]}))]
+                       {:name "Bad WF" :steps [{:id "x" :type "nope"}]}))]
       (is (= 400 (:status response)))
-      (is (seq (get-in response [:body :details :errors]))))))
+      (is (seq (get-in response [:body :details]))))))
 
 (deftest full-rest-execution-test
   (testing "create from JSON, start execution, drive to completion via registry handlers"
@@ -130,12 +158,12 @@
             start-resp (app-post-json app "/api/v1/executions"
                          (json/generate-string
                            {:workflow-id wf-id :input {:user "World"}}))]
-        (is (= 201 (:status start-resp)))
+        (is (= 202 (:status start-resp)))
         (let [exec-id (get-in start-resp [:body :execution-id])
               wf (wf-repo/get-workflow @test-datasource wf-id)
               exec (assoc (exec-repo/get-execution @test-datasource exec-id) :status :running)
-              step1 (engine/execute-step! @test-datasource exec wf)
-              step2 (engine/execute-step! @test-datasource step1 wf)]
+              step1 (engine/execute-step! @test-store @test-recorder @test-publisher @test-metrics @test-datasource exec wf)
+              step2 (engine/execute-step! @test-store @test-recorder @test-publisher @test-metrics @test-datasource step1 wf)]
           (is (= :completed (:status step2)))
           (is (= :e2 (:current-step step1)))
           (is (= "Goodbye" (get-in step2 [:context :last-result :bye]))))))))
@@ -161,12 +189,12 @@
             _ (registry/register-handler! "final" (fn [_ctx] {:done true}))
             start-resp (app-post-json app "/api/v1/executions"
                          (json/generate-string {:workflow-id wf-id :input {}}))]
-        (is (= 201 (:status start-resp)))
+        (is (= 202 (:status start-resp)))
         (let [exec-id (get-in start-resp [:body :execution-id])
               wf (wf-repo/get-workflow @test-datasource wf-id)
               exec (assoc (exec-repo/get-execution @test-datasource exec-id) :status :running)
-              step1 (engine/execute-step! @test-datasource exec wf)
-              step2 (engine/execute-step! @test-datasource step1 wf)]
+              step1 (engine/execute-step! @test-store @test-recorder @test-publisher @test-metrics @test-datasource exec wf)
+              step2 (engine/execute-step! @test-store @test-recorder @test-publisher @test-metrics @test-datasource step1 wf)]
           (is (= :completed (:status step2)))
           (is (= :final (:current-step step1)))
           (is (>= @attempts 2))

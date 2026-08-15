@@ -31,5 +31,5 @@
 
 (defn wrap-request-logging [handler]
   (fn [request]
-    (println (:request-method request) (:uri request))
+    (log/debug (:request-method request) (:uri request))
     (handler request)))

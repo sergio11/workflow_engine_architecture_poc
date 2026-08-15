@@ -10,8 +10,8 @@
   (or (some-> (System/getenv "APP_PORT") Integer/parseInt) 3000))
 
 (defn start-server!
-  [datasource]
-  (let [handler (-> (routes/api-routes datasource)
+  [datasource channels store recorder publisher metrics]
+  (let [handler (-> (routes/api-routes datasource channels store recorder publisher metrics)
                     middleware/wrap-json-response
                     middleware/wrap-json-body
                     middleware/wrap-params
@@ -26,6 +26,9 @@
 
 (defn stop-server! []
   (when @server
-    (.stop @server)
+    (try
+      (.stop @server)
+      (catch Exception e
+        (log/warn "Error stopping server:" (.getMessage e))))
     (reset! server nil)
     (log/info "Server stopped")))

@@ -10,14 +10,20 @@
             [workflow-engine.version :as version]))
 
 (defn create-workflow
-  [datasource]
+  [datasource store recorder publisher metrics]
   (fn [request]
     (let [body (:body request)
           wf (model/make-workflow
                (str (java.util.UUID/randomUUID))
                (:name body)
                (or (:version body) 1)
-               (mapv model/step-from-map (:steps body)))
+                (mapv #(if (map? %)
+                         (model/step-from-map %)
+                         (apply model/make-step
+                                (cond-> (vec %)
+                                  (and (second %) (string? (second %)))
+                                  (update 1 keyword))))
+                      (:steps body)))
           validation (validator/validate-workflow wf)]
       (if (:valid? validation)
         (do
@@ -57,16 +63,18 @@
        :body nil})))
 
 (defn start-execution
-  [datasource]
+  [datasource channels store recorder publisher metrics]
   (fn [request]
     (let [body (:body request)
           wf (wf-repo/get-workflow datasource (:workflow-id body))]
       (if wf
-        (let [exec (engine/start-execution! datasource wf (:input body {}))]
-          {:status 201
+        (let [exec (engine/start-execution! store recorder publisher metrics datasource wf (:input body {}))]
+          (engine/submit-step-for-execution! store recorder publisher metrics datasource exec wf channels)
+          {:status 202
            :body {:execution-id (:execution-id exec)
                   :workflow-id (:workflow-id exec)
-                  :status (:status exec)}})
+                  :status :pending
+                  :message "Execution submitted for async processing"}})
         {:status 404
          :body {:error "Workflow not found"}}))))
 
@@ -92,10 +100,10 @@
        :body executions})))
 
 (defn cancel-execution
-  [datasource]
+  [datasource store recorder publisher metrics]
   (fn [request]
     (let [id (get-in request [:path-params :id])
-          result (engine/cancel-execution! datasource id)]
+          result (engine/cancel-execution! store recorder publisher metrics datasource id)]
       (if result
         {:status 200
          :body {:execution-id (:execution-id result) :status (:status result)}}
@@ -103,29 +111,51 @@
          :body {:error "Execution not found or not cancellable"}}))))
 
 (defn resume-execution
-  [datasource]
+  [datasource channels store recorder publisher metrics]
   (fn [request]
     (let [id (get-in request [:path-params :id])
           wf (wf-repo/get-workflow datasource (get-in request [:body :workflow-id]))
-          result (when wf (engine/resume-execution! datasource id wf))]
-      (if result
-        {:status 200
-         :body {:execution-id (:execution-id result) :status (:status result)}}
+          execution (when wf (exec-repo/get-execution datasource id))]
+      (cond
+        (nil? execution)
         {:status 404
-          :body {:error "Execution not found or not resumable"}}))))
+         :body {:error "Execution not found"}}
+
+        (not= :waiting (:status execution))
+        {:status 400
+         :body {:error "Execution is not in waiting state"}}
+
+        :else
+        (do
+          (exec-repo/update-execution! datasource id {:status :running})
+          (let [updated-exec (assoc execution :status :running)]
+            (engine/submit-step-for-execution! store recorder publisher metrics datasource updated-exec wf channels))
+          {:status 200
+           :body {:execution-id id :status :running :message "Execution resumed"}})))))
 
 (defn retry-execution
-  [datasource]
+  [datasource channels store recorder publisher metrics]
   (fn [request]
     (let [id (get-in request [:path-params :id])
           body (:body request)
           wf (when (:workflow-id body) (wf-repo/get-workflow datasource (:workflow-id body)))
-          result (when wf (engine/retry-execution! datasource id wf))]
-      (if result
-        {:status 200
-         :body {:execution-id (:execution-id result) :status (:status result)}}
+          execution (when wf (exec-repo/get-execution datasource id))]
+      (cond
+        (nil? execution)
         {:status 404
-         :body {:error "Execution not found or not retriable"}}))))
+         :body {:error "Execution not found"}}
+
+        (not= :failed (:status execution))
+        {:status 400
+         :body {:error "Execution is not in failed state"}}
+
+        :else
+        (let [current-step (or (:current-step execution) (:id (first (:steps wf))))]
+          (exec-repo/update-execution! datasource id {:status :running})
+          (let [updated-exec (assoc execution :status :running :current-step current-step)]
+            (engine/submit-step-for-execution! store recorder publisher metrics datasource updated-exec wf channels))
+          {:status 200
+           :body {:execution-id id :status :running :message "Execution retried"}})))))
 
 (defn health-check [_request]
   {:status 200

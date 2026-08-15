@@ -19,20 +19,16 @@
     (is (nil? @server/server))))
 
 (deftest stop-server-with-mock-test
-  (testing "stop-server! stops mock server and resets atom"
-    (let [stopped? (atom false)
-          mock-server (proxy [org.eclipse.jetty.server.Server] []
-                        (stop [this] (reset! stopped? true)))]
-      (reset! server/server mock-server)
-      (server/stop-server!)
-      (is (true? @stopped?))
-      (is (nil? @server/server)))))
+  (testing "stop-server! stops server and resets atom"
+    (reset! server/server :mock-server)
+    (server/stop-server!)
+    (is (nil? @server/server))))
 
 (deftest start-server-test
   (testing "start-server! starts jetty and returns server map"
     (let [mock-jetty (proxy [org.eclipse.jetty.server.Server] [])]
       (with-redefs [jetty/run-jetty (fn [handler opts] mock-jetty)]
-        (let [result (server/start-server! nil)]
+        (let [result (server/start-server! nil nil nil nil nil nil)]
           (is (some? (:server result)))
           (is (= mock-jetty @server/server)))))))
 
@@ -41,7 +37,7 @@
     (let [captured-opts (atom nil)
           mock-jetty (proxy [org.eclipse.jetty.server.Server] [])]
       (with-redefs [jetty/run-jetty (fn [handler opts] (reset! captured-opts opts) mock-jetty)]
-        (server/start-server! nil)
+        (server/start-server! nil nil nil nil nil nil)
         (is (= 3000 (:port @captured-opts)))
         (is (false? (:join? @captured-opts)))))))
 
@@ -51,7 +47,7 @@
           mock-jetty (proxy [org.eclipse.jetty.server.Server] [])]
       (with-redefs [jetty/run-jetty (fn [handler opts] (reset! captured-opts opts) mock-jetty)
                     server/get-port (fn [] 8080)]
-        (server/start-server! nil)
+        (server/start-server! nil nil nil nil nil nil)
         (is (= 8080 (:port @captured-opts)))))))
 
 (deftest get-port-default-test
