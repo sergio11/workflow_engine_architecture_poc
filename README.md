@@ -2,7 +2,7 @@
 
 [![Clojure 1.11](https://img.shields.io/badge/Clojure-1.11-5881D8?logo=clojure&logoColor=white)](https://clojure.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Coverage](https://img.shields.io/badge/Coverage-98%25-brightgreen.svg)](#testing)
+[![Coverage](https://img.shields.io/badge/Coverage-99%25-brightgreen.svg)](#testing)
 [![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
@@ -70,35 +70,73 @@ Every state change produces an immutable event record. The event store provides 
 
 The project follows a **layered architecture** with clear separation of concerns across nine distinct layers. Each layer has a single responsibility and communicates with adjacent layers through well-defined interfaces.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         API Layer                                   │
-│   (HTTP Interface: Routes, Handlers, Middleware, Server)            │
-├─────────────────────────────────────────────────────────────────────┤
-│                       Domain Layer                                  │
-│   (Business Logic: Model, DSL, Validator)                           │
-├─────────────────────────────────────────────────────────────────────┤
-│                     Execution Layer                                 │
-│   (Orchestration: Engine, State Machine, Context)                   │
-├─────────────────────────────────────────────────────────────────────┤
-│                       Worker Layer                                  │
-│   (Step Execution: Handler, Retry, Registry, Examples)              │
-├─────────────────────────────────────────────────────────────────────┤
-│                     Scheduler Layer                                 │
-│   (Async Distribution: Core, Channels)                              │
-├─────────────────────────────────────────────────────────────────────┤
-│                       Events Layer                                  │
-│   (Event Sourcing: Store, Publisher)                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                     Persistence Layer                               │
-│   (Data Access: DB, Workflow Repo, Execution Repo, Event Repo)      │
-├─────────────────────────────────────────────────────────────────────┤
-│                       Metrics Layer                                 │
-│   (Observability: Collector)                                        │
-├─────────────────────────────────────────────────────────────────────┤
-│                       Config Layer                                  │
-│   (Lifecycle: System via Integrant)                                 │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+block-beta
+  columns 1
+  block:api:1
+    columns 1
+    A["🌐  API Layer"]
+    A1["HTTP Interface: Routes · Handlers · Middleware · Server"]
+  end
+  block:domain:1
+    columns 1
+    B["💼  Domain Layer"]
+    B1["Business Logic: Model · DSL · Validator"]
+  end
+  block:execution:1
+    columns 1
+    C["⚙️  Execution Layer"]
+    C1["Orchestration: Engine · State Machine · Context · Ports · Adapters · Step Executor · Transitions"]
+  end
+  block:worker:1
+    columns 1
+    D["🔧  Worker Layer"]
+    D1["Step Execution: Handler · Retry · Registry · Examples"]
+  end
+  block:scheduler:1
+    columns 1
+    E["📡  Scheduler Layer"]
+    E1["Async Distribution: Core · Channels"]
+  end
+  block:events:1
+    columns 1
+    F["📣  Events Layer"]
+    F1["Event Sourcing: Store · Publisher"]
+  end
+  block:persistence:1
+    columns 1
+    G["💾  Persistence Layer"]
+    G1["Data Access: DB · Workflow Repo · Execution Repo · Event Repo"]
+  end
+  block:metrics:1
+    columns 1
+    H["📊  Metrics Layer"]
+    H1["Observability: Collector"]
+  end
+  block:config:1
+    columns 1
+    I["🧩  Config Layer"]
+    I1["Lifecycle: System via Integrant"]
+  end
+
+  style A fill:#6366f1,stroke:#4f46e5,color:#fff,stroke-width:2px
+  style A1 fill:#e0e7ff,stroke:#6366f1,color:#1e1b4b
+  style B fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px
+  style B1 fill:#ede9fe,stroke:#8b5cf6,color:#1e1b4b
+  style C fill:#a855f7,stroke:#9333ea,color:#fff,stroke-width:2px
+  style C1 fill:#f3e8ff,stroke:#a855f7,color:#1e1b4b
+  style D fill:#d946ef,stroke:#c026d3,color:#fff,stroke-width:2px
+  style D1 fill:#fae8ff,stroke:#d946ef,color:#1e1b4b
+  style E fill:#ec4899,stroke:#db2777,color:#fff,stroke-width:2px
+  style E1 fill:#fce7f3,stroke:#ec4899,color:#1e1b4b
+  style F fill:#f43f5e,stroke:#e11d48,color:#fff,stroke-width:2px
+  style F1 fill:#ffe4e6,stroke:#f43f5e,color:#1e1b4b
+  style G fill:#f97316,stroke:#ea580c,color:#fff,stroke-width:2px
+  style G1 fill:#ffedd5,stroke:#f97316,color:#1e1b4b
+  style H fill:#eab308,stroke:#ca8a04,color:#fff,stroke-width:2px
+  style H1 fill:#fef9c3,stroke:#eab308,color:#1e1b4b
+  style I fill:#22c55e,stroke:#16a34a,color:#fff,stroke-width:2px
+  style I1 fill:#dcfce7,stroke:#22c55e,color:#1e1b4b
 ```
 
 #### Layer Responsibilities
@@ -107,7 +145,7 @@ The project follows a **layered architecture** with clear separation of concerns
 |-------|----------------|-----------|
 | **API** | HTTP interface, request routing, middleware stack, JSON serialization | `api/handlers.clj`, `api/routes.clj`, `api/middleware.clj`, `api/server.clj` |
 | **Domain** | Business entities, workflow DSL, validation rules | `workflow/model.clj`, `workflow/dsl.clj`, `workflow/validator.clj` |
-| **Execution** | Workflow orchestration, state transitions, context management | `execution/engine.clj`, `execution/state_machine.clj`, `execution/context.clj` |
+| **Execution** | Workflow orchestration, state transitions, context management, protocol-based dependency injection | `execution/engine.clj`, `execution/state_machine.clj`, `execution/context.clj`, `execution/ports.clj`, `execution/adapters.clj`, `execution/step_executor.clj`, `execution/transitions.clj` |
 | **Worker** | Step execution, retry policies, handler registry | `worker/handler.clj`, `worker/retry.clj`, `worker/registry.clj` |
 | **Scheduler** | Asynchronous work distribution via CSP channels | `scheduler/core.clj`, `scheduler/channels.clj` |
 | **Events** | Event sourcing, in-process pub/sub | `events/store.clj`, `events/publisher.clj` |
@@ -117,133 +155,128 @@ The project follows a **layered architecture** with clear separation of concerns
 
 ### Component Diagram
 
-```
-┌──────────┐     ┌──────────────────────────────────────────────────────┐
-│  Client  │────▶│                   REST API                          │
-└──────────┘     │              (Ring + Reitit)                         │
-                 │                                                      │
-                 │  ┌───────────┐   ┌───────────┐                      │
-                 │  │  /health  │   │  /metrics │  (bypassed)          │
-                 │  └───────────┘   └───────────┘                      │
-                 │                                                      │
-                 │  ┌─────────────┐  ┌──────────────┐                  │
-                 │  │   Routes    │─▶│   Handlers   │                  │
-                 │  │  (reitit)   │  │  (handlers)  │                  │
-                 │  └─────────────┘  └──────┬───────┘                  │
-                 │                          │                          │
-                 │  ┌───────────────────────▼───────────────────────┐  │
-                 │  │              Workflow Engine                   │  │
-                 │  │                                               │  │
-                 │  │  ┌─────────────┐  ┌──────────────────────┐   │  │
-                 │  │  │   Engine    │─▶│   State Machine      │   │  │
-                 │  │  │ (engine)    │  │ (state_machine)      │   │  │
-                 │  │  └──────┬──────┘  └──────────────────────┘   │  │
-                 │  │         │                                     │  │
-                 │  │  ┌──────▼──────┐  ┌──────────────────────┐   │  │
-                 │  │  │   Worker    │─▶│  Handler Registry    │   │  │
-                 │  │  │  (handler)  │  │  (registry)          │   │  │
-                 │  │  └──────┬──────┘  └──────────────────────┘   │  │
-                 │  │         │                                     │  │
-                 │  │  ┌──────▼──────┐  ┌──────────────────────┐   │  │
-                 │  │  │   Retry     │  │  Timeout             │   │  │
-                 │  │  │  (retry)    │  │  (handler)           │   │  │
-                 │  │  └─────────────┘  └──────────────────────┘   │  │
-                 │  └───────────────────────────────────────────────┘  │
-                 │                          │                          │
-                 │  ┌───────────────────────▼───────────────────────┐  │
-                 │  │            Event System                       │  │
-                 │  │  ┌─────────────┐  ┌──────────────────────┐   │  │
-                 │  │  │   Store     │─▶│   Publisher          │   │  │
-                 │  │  │ (store)     │  │  (publisher)         │   │  │
-                 │  │  └─────────────┘  └──────────────────────┘   │  │
-                 │  └───────────────────────────────────────────────┘  │
-                 │                          │                          │
-                 │  ┌───────────────────────▼───────────────────────┐  │
-                 │  │            Persistence                        │  │
-                 │  │  ┌─────────────┐  ┌──────────────────────┐   │  │
-                 │  │  │ Workflow    │  │  Execution Repo      │   │  │
-                 │  │  │   Repo      │  │  (execution_repo)    │   │  │
-                 │  │  └─────────────┘  └──────────────────────┘   │  │
-                 │  │  ┌─────────────┐                              │  │
-                 │  │  │  Event      │  ┌──────────────────────┐   │  │
-                 │  │  │   Repo      │  │  Metrics Collector   │   │  │
-                 │  │  └─────────────┘  │  (collector)         │   │  │
-                 │  │                    └──────────────────────┘   │  │
-                 │  └───────────────────────────────────────────────┘  │
-                 └──────────────────────────────┬───────────────────────┘
-                                                │
-          ┌─────────────────────────────────────┼───────────────────────┐
-          │        Docker Compose Network        │                       │
-          │  ┌──────────────────┐  ┌──────────────────────────────────┐ │
-          │  │   PostgreSQL     │  │         App Container            │ │
-          │  │   :5432          │  │  (workflow-engine uberjar)       │ │
-          │  └──────────────────┘  └──────────────────────────────────┘ │
-          └─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    Client["🖥️  Client"]
+
+    subgraph REST["🌐 REST API — Ring + Reitit"]
+        direction TB
+        Health["/health"]
+        Metrics["/metrics"]
+        Routes["Routes — reitit"]
+        Handlers["Handlers"]
+        Routes --> Handlers
+    end
+
+    subgraph Engine["⚙️  Workflow Engine"]
+        direction TB
+        Eng["Engine — engine"]
+        SM["State Machine — state_machine"]
+        Worker["Worker — handler"]
+        Registry["Handler Registry — registry"]
+        Retry["Retry — retry"]
+        Timeout["Timeout — handler"]
+        Eng --> SM
+        Eng --> Worker
+        Worker --> Registry
+        Worker --> Retry
+        Worker --> Timeout
+    end
+
+    subgraph Events["📣  Event System"]
+        direction TB
+        Store["Store — store"]
+        Publisher["Publisher — publisher"]
+        Store --> Publisher
+    end
+
+    subgraph Persistence["💾  Persistence"]
+        direction TB
+        WFRepo["Workflow Repo"]
+        ExecRepo["Execution Repo"]
+        EventRepo["Event Repo"]
+        Collector["Metrics Collector — collector"]
+    end
+
+    subgraph Infra["🐳  Docker Compose Network"]
+        direction LR
+        PostgreSQL[("🐘  PostgreSQL\n:5432")]
+        App["📦  App Container\nworkflow-engine uberjar"]
+    end
+
+    Client --> REST
+    REST --> Engine
+    Engine --> Events
+    Engine --> Persistence
+    Persistence --> Infra
+
+    style Client fill:#06b6d4,stroke:#0891b2,color:#fff,stroke-width:3px
+    style REST fill:#3b82f6,stroke:#2563eb,color:#fff,stroke-width:2px
+    style Engine fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px
+    style Events fill:#f43f5e,stroke:#e11d48,color:#fff,stroke-width:2px
+    style Persistence fill:#f97316,stroke:#ea580c,color:#fff,stroke-width:2px
+    style Infra fill:#64748b,stroke:#475569,color:#fff,stroke-width:2px
+    style Health fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
+    style Metrics fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
+    style Routes fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
+    style Handlers fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
+    style Eng fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
+    style SM fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
+    style Worker fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
+    style Registry fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
+    style Retry fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
+    style Timeout fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
+    style Store fill:#fecdd3,stroke:#f43f5e,color:#4a0012
+    style Publisher fill:#fecdd3,stroke:#f43f5e,color:#4a0012
+    style WFRepo fill:#fed7aa,stroke:#f97316,color:#431407
+    style ExecRepo fill:#fed7aa,stroke:#f97316,color:#431407
+    style EventRepo fill:#fed7aa,stroke:#f97316,color:#431407
+    style Collector fill:#fed7aa,stroke:#f97316,color:#431407
+    style PostgreSQL fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style App fill:#e2e8f0,stroke:#64748b,color:#1e293b
 ```
 
 ### Execution Flow
 
 The following diagram illustrates how a workflow execution flows through the system:
 
-```
-Client Request
-     │
-     ▼
-┌─────────────┐
-│ REST API    │──── POST /api/v1/executions
-│ (handlers)  │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  Engine     │──── Creates Execution record (status: :pending)
-│  (engine)   │──── Records :workflow-started event
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  Scheduler  │──── Picks up pending execution via core.async channel
-│  (core)     │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  Worker     │──── Resolves handler (step → registry fallback)
-│  (handler)  │──── Executes with timeout (future deref)
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  Retry      │──── On failure: applies retry policy (exponential backoff)
-│  (retry)    │──── On success: returns result
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  State      │──── Determines next status based on step type + result
-│  Machine    │     :task → :completed/:failed
-│             │     :wait → :waiting
-│             │     :decision → branch selection
-│             │     :parallel → fan-out/fan-in
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  Engine     │──── Updates execution status
-│  (advance)  │──── Records :step-completed/:step-failed event
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  Events     │──── Persists to PostgreSQL (audit trail)
-│  (store)    │──── Publishes to in-process subscribers (real-time)
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  Metrics    │──── Updates counters and histograms
-│  (collector)│
-└─────────────┘
+```mermaid
+graph TD
+    A["🖥️  Client Request"] -->|"POST /api/v1/executions"| B
+
+    B["🌐  REST API\nhandlers"] -->|"Creates Execution\n(status: :pending)"| C
+
+    C["⚙️  Engine\nengine"] -->|"Records :workflow-started"| D
+
+    D["📡  Scheduler\ncore.async channel"] -->|"Picks up pending\nexecution"| E
+
+    E["🔧  Worker\nhandler"] -->|"Resolves handler\n(step → registry fallback)\nExecutes with timeout"| F
+
+    F{"🔄  Retry\nretry"}
+
+    F -->|"On failure:\nexponential backoff"| G
+    F -->|"On success:\nreturns result"| G
+
+    G["🔀  State Machine\nstate_machine"] -->|"Determines next status\nbased on step type + result"| H
+
+    H["⚙️  Engine — Advance"] -->|"Updates execution status\nRecords :step-completed/:step-failed"| I
+
+    I["📣  Events\nstore"] -->|"Persists to PostgreSQL\n(audit trail)"| J
+    I -->|"Publishes to in-process\nsubscribers (real-time)"| J
+
+    J["📊  Metrics\ncollector"] --> K["✅  Complete"]
+
+    style A fill:#06b6d4,stroke:#0891b2,color:#fff,stroke-width:3px
+    style B fill:#3b82f6,stroke:#2563eb,color:#fff,stroke-width:2px
+    style C fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px
+    style D fill:#ec4899,stroke:#db2777,color:#fff,stroke-width:2px
+    style E fill:#f97316,stroke:#ea580c,color:#fff,stroke-width:2px
+    style F fill:#eab308,stroke:#ca8a04,color:#fff,stroke-width:2px
+    style G fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px
+    style H fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px
+    style I fill:#f43f5e,stroke:#e11d48,color:#fff,stroke-width:2px
+    style J fill:#22c55e,stroke:#16a34a,color:#fff,stroke-width:2px
+    style K fill:#10b981,stroke:#059669,color:#fff,stroke-width:3px
 ```
 
 ## Architecture Patterns
@@ -307,30 +340,43 @@ This project implements several well-known software architecture patterns, adapt
 
 **Implementation:** The state machine (`execution/state_machine.clj`) defines a `valid-transitions` map and a `determine-next-status` function that maps step type + result to the next status.
 
-```
-                    ┌─────────────────────────────────────┐
-                    │                                     │
-                    ▼                                     │
-               ┌─────────┐                               │
-               │ pending │                               │
-               └────┬────┘                               │
-                    │ start                               │
-                    ▼                                     │
-               ┌─────────┐                               │
-          ┌───▶│ running │◀──────────────────────┐       │
-          │    └────┬────┘                       │       │
-          │         │                            │       │
-          │         ├──▶ completed               │       │
-          │         │                            │       │
-          │         ├──▶ failed ──── retry ──────┘       │
-          │         │                                    │
-          │         ├──▶ waiting ──── resume ────────────┘
-          │         │
-          │         └──▶ cancelled
-          │
-          │    ┌─────────────┐
-          └────│   History   │
-               └─────────────┘
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> pending : 🚀 start
+
+    pending --> running : ▶ start
+
+    running --> completed : ✅ step-completed\n(no next step)
+    running --> running : ⏭️ step-completed\n(next step)
+    running --> failed : ❌ step-failed
+    running --> waiting : ⏸️ wait-step
+    running --> cancelled : 🚫 cancel
+
+    failed --> running : 🔄 retry\n(exponential backoff)
+    waiting --> running : ▶ resume
+
+    completed --> [*] : 🎉 done
+    cancelled --> [*] : 🛑 cancelled
+
+    note right of running
+        Core state where step execution
+        and retry logic occurs
+    end note
+
+    note left of failed
+        Retry policy determines
+        max attempts before
+        permanent failure
+    end note
+
+    style pending fill:#fef3c7,stroke:#f59e0b,color:#78350f,stroke-width:2px
+    style running fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f,stroke-width:2px
+    style completed fill:#dcfce7,stroke:#22c55e,color:#14532d,stroke-width:2px
+    style failed fill:#fee2e2,stroke:#ef4444,color:#7f1d1d,stroke-width:2px
+    style waiting fill:#f3e8ff,stroke:#a855f7,color:#3b0764,stroke-width:2px
+    style cancelled fill:#f1f5f9,stroke:#94a3b8,color:#334155,stroke-width:2px
 ```
 
 **State Transitions:**
@@ -504,9 +550,13 @@ This project implements several well-known software architecture patterns, adapt
 | `workflow-engine.workflow.model` | Domain records: `Workflow`, `Step`, `Execution`, `Event` |
 | `workflow-engine.workflow.dsl` | Workflow definition DSL (`linear-workflow`, `task-step`, etc.) |
 | `workflow-engine.workflow.validator` | Workflow and execution validation |
-| `workflow-engine.execution.engine` | Core execution engine: start, execute-step, advance, cancel, retry |
+| `workflow-engine.execution.engine` | Core execution engine: start, execute-step, advance, cancel, retry — delegates to step-executor and transitions modules |
 | `workflow-engine.execution.state-machine` | State transition rules and status determination |
 | `workflow-engine.execution.context` | Execution context creation and merging |
+| `workflow-engine.execution.ports` | Protocol definitions: `ExecutionStore`, `EventRecorder`, `EventPublisher`, `MetricsCollector` |
+| `workflow-engine.execution.adapters` | Protocol implementations delegating to concrete persistence, events, and metrics modules |
+| `workflow-engine.execution.step-executor` | Handler resolution (inline → registry fallback) and step execution wrapper |
+| `workflow-engine.execution.transitions` | Next-step determination and execution update building |
 | `workflow-engine.worker.handler` | Step execution with timeout and retry orchestration |
 | `workflow-engine.worker.retry` | Retry policies: exponential backoff, fixed delay |
 | `workflow-engine.worker.registry` | Global handler registry (atom-based) |
@@ -688,11 +738,23 @@ Full CRUD for workflows and executions via REST endpoints:
 
 Explicit state transitions with validated status:
 
-```
-pending ──▶ running ──▶ completed
-                 │──▶ failed ──▶ running (retry)
-                 │──▶ waiting ──▶ running (resume)
-                 │──▶ cancelled
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> running
+    running --> completed
+    running --> failed
+    failed --> running : retry
+    running --> waiting
+    waiting --> running : resume
+    running --> cancelled
+
+    style pending fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    style running fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style completed fill:#dcfce7,stroke:#22c55e,color:#14532d
+    style failed fill:#fee2e2,stroke:#ef4444,color:#7f1d1d
+    style waiting fill:#f3e8ff,stroke:#a855f7,color:#3b0764
+    style cancelled fill:#f1f5f9,stroke:#94a3b8,color:#334155
 ```
 
 The state machine (`execution/state_machine.clj`) defines valid transitions and prevents invalid state changes. Step types (`:task`, `:wait`, `:decision`, `:parallel`) determine how results map to status transitions.
@@ -758,8 +820,8 @@ Run via: `rake demo` or `docker compose -f demo/compose.demo.yml run --rm demo c
 
 | Metric | Value |
 |--------|-------|
-| **Forms covered** | 98.87% |
-| **Lines covered** | 99.56% |
+| **Forms covered** | 99.14% |
+| **Lines covered** | 99.58% |
 | **Test framework** | Kaocha + clojure.test |
 | **Test suites** | Unit + Integration |
 
@@ -897,31 +959,35 @@ This ensures CI fails if coverage drops below 98%.
 | `workflow-engine.workflow.model` | 100% | 100% |
 | `workflow-engine.workflow.dsl` | 100% | 100% |
 | `workflow-engine.workflow.validator` | 99.49% | 100% |
-| `workflow-engine.execution.engine` | 99.83% | 100% |
+| `workflow-engine.execution.engine` | 99.81% | 100% |
 | `workflow-engine.execution.state-machine` | 100% | 100% |
 | `workflow-engine.execution.context` | 100% | 100% |
+| `workflow-engine.execution.ports` | 100% | 100% |
+| `workflow-engine.execution.adapters` | 93.59% | 96.43% |
+| `workflow-engine.execution.step-executor` | 100% | 100% |
+| `workflow-engine.execution.transitions` | 100% | 100% |
 | `workflow-engine.worker.handler` | 100% | 100% |
-| `workflow-engine.worker.retry` | 100% | 100% |
+| `workflow-engine.worker.retry` | 98.90% | 100% |
 | `workflow-engine.worker.registry` | 97.92% | 100% |
 | `workflow-engine.worker.examples` | 100% | 100% |
-| `workflow-engine.api.handlers` | 95.78% | 98.32% |
+| `workflow-engine.api.handlers` | 98.91% | 99.20% |
 | `workflow-engine.api.routes` | 100% | 100% |
-| `workflow-engine.api.server` | 96.75% | 100% |
+| `workflow-engine.api.server` | 97.28% | 100% |
 | `workflow-engine.api.middleware` | 91.51% | 100% |
 | `workflow-engine.persistence.db` | 100% | 100% |
 | `workflow-engine.persistence.db-config` | 100% | 100% |
 | `workflow-engine.persistence.workflow-repo` | 100% | 100% |
-| `workflow-engine.persistence.execution-repo` | 99.64% | 100% |
+| `workflow-engine.persistence.execution-repo` | 100% | 100% |
 | `workflow-engine.persistence.event-repo` | 100% | 100% |
 | `workflow-engine.events.store` | 100% | 100% |
 | `workflow-engine.events.publisher` | 98.61% | 100% |
-| `workflow-engine.scheduler.core` | 97.41% | 96.30% |
+| `workflow-engine.scheduler.core` | 97.66% | 96.30% |
 | `workflow-engine.scheduler.channels` | 97.48% | 100% |
 | `workflow-engine.metrics.collector` | 99.64% | 100% |
-| `workflow-engine.config.system` | 97.56% | 97.30% |
+| `workflow-engine.config.system` | 98.42% | 98.04% |
 | `workflow-engine.version` | 100% | 100% |
 
-**Key Achievement:** 18 out of 27 namespaces achieve 100% line coverage. The remaining namespaces are above 96%, with the lowest being `middleware` at 91.51% forms (but 100% lines).
+**Key Achievement:** 21 out of 30 namespaces achieve 100% line coverage. The remaining namespaces are above 96%, with the lowest being `adapters` at 93.59% forms (but 96.43% lines).
 
 #### 10. Strategic Coverage Exclusions
 
@@ -1096,7 +1162,11 @@ Tests use a separate PostgreSQL instance (`test-db` service on port 5433) with `
 │       ├── execution/
 │       │   ├── engine.clj            # Core execution engine
 │       │   ├── state_machine.clj     # State transition rules
-│       │   └── context.clj           # Context creation/merge
+│       │   ├── context.clj           # Context creation/merge
+│       │   ├── ports.clj             # Protocol definitions (DI)
+│       │   ├── adapters.clj          # Protocol implementations
+│       │   ├── step_executor.clj     # Handler resolution + execution
+│       │   └── transitions.clj       # Next-step + update building
 │       ├── metrics/
 │       │   └── collector.clj         # In-memory metrics
 │       ├── persistence/
@@ -1117,9 +1187,11 @@ Tests use a separate PostgreSQL instance (`test-db` service on port 5433) with `
 │       │   ├── model.clj             # Domain records
 │       │   ├── dsl.clj               # Workflow DSL
 │       │   └── validator.clj         # Validation rules
+│       ├── version.clj               # Version constant
 │       └── core.clj                  # Application entrypoint
 ├── test/
 │   └── workflow_engine/
+│       ├── core_test.clj              # Core integration tests
 │       ├── api/
 │       │   ├── handlers_it.clj       # Handler integration tests
 │       │   ├── routes_test.clj       # Route + REST e2e tests
@@ -1163,7 +1235,7 @@ Tests use a separate PostgreSQL instance (`test-db` service on port 5433) with `
 │   ├── repl_demo.clj                 # REPL walkthrough
 │   ├── compose.demo.yml              # Demo Docker Compose
 │   ├── Dockerfile.demo               # Demo container
-│   └── initdb/                       # Demo DB init
+│   └── repl_demo.clj                 # REPL walkthrough
 ├── initdb/
 │   └── 01-schema.sql                 # Database schema
 ├── compose.yml                       # Main Docker Compose
