@@ -1247,6 +1247,10 @@ Tests use a separate PostgreSQL instance (`test-db` service on port 5433) with `
 └── LICENSE                           # MIT
 ```
 
+## Portfolio Note
+
+> **Note:** This is a portfolio project. Issues and pull requests are not actively monitored.
+
 ## License ⚖️
 
 This is a Proof of Concept. Not intended for production use.
