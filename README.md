@@ -14,6 +14,10 @@ This project is developed for **educational and research purposes** only. It is 
 
 The primary focus is to explore **Clojure's data-as-code paradigm**, **immutability-driven state management**, **core.async concurrency**, and **REPL-driven development** for building business process software, emphasizing developer learning and architectural exploration in a controlled environment.
 
+## More Details 📝
+
+For comprehensive information about this project, check out this [Medium article](https://medium.com/@sanchezsanchezsergio418/building-a-workflow-engine-in-clojure-why-everything-is-data-275b1f562e07).
+
 ## Why Clojure?
 
 Clojure's data-oriented approach maps naturally to workflow orchestration:
