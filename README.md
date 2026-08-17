@@ -16,61 +16,14 @@ The primary focus is to explore **Clojure's data-as-code paradigm**, **immutabil
 
 ## Why Clojure?
 
-We picked Clojure for this POC because it fits really well with what a workflow engine needs. Here's why — each point explains the problem, how Clojure solves it, and where you can see it in action.
+Clojure's data-oriented approach maps naturally to workflow orchestration:
 
-### Immutability by Default
-
-**The problem:** A workflow engine constantly transitions between states — `pending → running → completed/failed`. When multiple workflows run concurrently, shared mutable state becomes a nightmare: race conditions, deadlocks, hard-to-reproduce bugs.
-
-**How Clojure helps:** Every data structure in Clojure is immutable by default. When a step finishes, you don't *modify* the execution — you get a *new* execution with the updated status and context. No locks, no mutexes, no "oops I forgot to synchronize" moments.
-
-In this engine, the `Execution` record is never mutated. Each step produces a fresh record with updated values. The state machine (`execution/state_machine.clj`) determines transitions purely from input data, not from shared mutable state.
-
-### Data-as-Code DSL
-
-**The problem:** Most workflow engines in Java/C# have a painful mismatch: workflows defined in code use classes and interfaces, but when they come from a REST API as JSON, you need serialization/deserialization layers, adapters, and conversion logic. It's a constant source of bugs.
-
-**How Clojure helps:** Clojure is homoiconic — code *is* data and data *is* code. The workflow DSL returns plain maps. A workflow created via the REST API (JSON → Clojure maps) and one created in code (Clojure maps directly) are *structurally identical*. No classes, no interfaces, no conversion layer.
-
-You can see this in `workflow/dsl.clj` — `linear-workflow` accepts either vector literals `[[:step1 :task handler-fn]]` or JSON-compatible maps `[{:id "step1" :type "task"}]`. Both produce the same `Workflow` record. The `step-from-map` function normalizes any map shape into a proper `Step` record.
-
-### REPL-Driven Development
-
-**The problem:** Traditional development cycles for business logic are slow — you change a handler, restart the server, re-create the workflow, re-run it. When your business logic changes daily, this friction adds up.
-
-**How Clojure helps:** The REPL isn't just a console — it's a full development environment. You can hot-patch handlers at runtime without restarting anything. Modify a function, re-evaluate it, and the next execution uses the new version. Zero downtime.
-
-Check out `demo/repl_demo.clj` for a walkthrough that does exactly this: it modifies a handler at runtime and shows the change taking effect on the next execution.
-
-### core.async — CSP Concurrency
-
-**The problem:** Concurrent workflow execution needs a clean way to distribute work without introducing complexity. Threads + locks are error-prone and hard to debug.
-
-**How Clojure helps:** Clojure's `core.async` implements Communicating Sequential Processes (CSP) — a model where independent processes communicate through channels instead of sharing memory. The scheduler pushes work into a channel, workers pick it up, process it, and push results to another channel. No locks, no shared state, no race conditions.
-
-The scheduler (`scheduler/core.clj`) uses `go-loop` to process pending executions. Event publishing uses channels for fan-out to subscribers. Everything communicates through channels — it's clean, composable, and easy to reason about.
-
-### Functional Composition
-
-**The problem:** Traditional OOP frameworks make you inherit from base classes, override methods, and wire things together with configuration files. Adding cross-cutting concerns (retry, timeout, logging) means more inheritance, more complexity.
-
-**How Clojure helps:** Handlers are plain functions `(fn [context] result)`. You compose them with `comp`, `partial`, `->>`, and other standard Clojure tools. Need retry logic? Wrap your handler function. Need a timeout? Wrap it again. Complex behaviors emerge from combining small, testable functions.
-
-You can see this in action: `worker/retry.clj` accepts a policy map and returns a composed handler. The middleware stack in `api/middleware.clj` uses function composition to build the request pipeline. Every handler in `worker/examples.clj` is a standalone function you can test in isolation.
-
-### Java Interop
-
-**The problem:** You want mature, battle-tested libraries for database access, HTTP, JSON — not half-baked Clojure-only alternatives.
-
-**How Clojure helps:** Clojure runs on the JVM, so you get full access to the entire Java ecosystem without ceremony. PostgreSQL drivers via `next.jdbc`, JSON via `cheshire`, HTTP via `ring`, connection pooling via `hikari-cp` — all standard, well-maintained libraries used idiomatically from Clojure.
-
-### Event Sourcing
-
-**The problem:** When a workflow fails, you need to know exactly what happened — which step failed, what the context was at that point, and what events led to the failure. Logs are great, but they're not structured or queryable.
-
-**How Clojure helps:** Every state change produces an immutable event record. The engine records `workflow-started`, `step-started`, `step-completed`, `step-failed`, and `workflow-completed` events for every execution. These events are both persisted to PostgreSQL (for audit and replay) and published to in-process subscribers (for real-time monitoring).
-
-The event store (`events/store.clj`) and event repo (`persistence/event_repo.clj`) handle the dual-write: durability for compliance, and live pub/sub for dashboards.
+- **Immutability by default** — State transitions produce new values, eliminating race conditions in concurrent executions
+- **Data-as-Code DSL** — Workflows are plain maps, identical whether created in code or received via JSON API
+- **REPL-driven development** — Hot-patch handlers at runtime without server restarts
+- **core.async** — CSP-based concurrency for work distribution without locks
+- **Functional composition** — Handlers are plain functions that compose with `comp`, `partial`, `->>`
+- **Java interop** — Full access to JVM libraries (`next.jdbc`, `cheshire`, `ring`, `hikari-cp`)
 
 ## Architecture
 
