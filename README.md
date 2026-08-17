@@ -1,4 +1,4 @@
-# workflow-engine — Clojure Workflow Engine POC
+#  Clojure Workflow Engine Architecture POC
 
 [![Clojure 1.11](https://img.shields.io/badge/Clojure-1.11-5881D8?logo=clojure&logoColor=white)](https://clojure.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
