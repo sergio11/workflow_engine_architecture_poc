@@ -16,127 +16,123 @@ The primary focus is to explore **Clojure's data-as-code paradigm**, **immutabil
 
 ## Why Clojure?
 
-Clojure was chosen as the language for this POC for several deliberate reasons that align with the requirements of workflow orchestration software:
+We picked Clojure for this POC because it fits really well with what a workflow engine needs. Here's why — each point explains the problem, how Clojure solves it, and where you can see it in action.
 
 ### Immutability by Default
 
-Workflow engines deal with state transitions — pending → running → completed/failed. In Clojure, every data structure is immutable by default. State transitions return new values, eliminating race conditions and making workflow execution inherently thread-safe. The `Execution` record is never mutated; each step produces a new record with updated status and context.
+**The problem:** A workflow engine constantly transitions between states — `pending → running → completed/failed`. When multiple workflows run concurrently, shared mutable state becomes a nightmare: race conditions, deadlocks, hard-to-reproduce bugs.
 
-**Evidence:** The engine processes concurrent workflow steps using `core.async` channels without any locking primitives. Step results flow through immutable context maps, and the state machine (`state_machine.clj`) determines transitions purely from input data.
+**How Clojure helps:** Every data structure in Clojure is immutable by default. When a step finishes, you don't *modify* the execution — you get a *new* execution with the updated status and context. No locks, no mutexes, no "oops I forgot to synchronize" moments.
+
+In this engine, the `Execution` record is never mutated. Each step produces a fresh record with updated values. The state machine (`execution/state_machine.clj`) determines transitions purely from input data, not from shared mutable state.
 
 ### Data-as-Code DSL
 
-Clojure's homoiconicity means code IS data and data IS code. The workflow DSL returns plain maps — no classes, no interfaces, no serialization boundaries. A workflow created via the REST API (JSON maps) and one created in code (Clojure maps) are structurally identical. This eliminates the impedance mismatch that plagues Java/C# workflow engines.
+**The problem:** Most workflow engines in Java/C# have a painful mismatch: workflows defined in code use classes and interfaces, but when they come from a REST API as JSON, you need serialization/deserialization layers, adapters, and conversion logic. It's a constant source of bugs.
 
-**Evidence:** `dsl/linear-workflow` accepts either vector literals `[[:step1 :task handler-fn]]` or JSON-compatible maps `[{:id "step1" :type "task"}]`. Both produce the same `Workflow` record. The `step-from-map` function normalizes any map shape into a proper `Step` record.
+**How Clojure helps:** Clojure is homoiconic — code *is* data and data *is* code. The workflow DSL returns plain maps. A workflow created via the REST API (JSON → Clojure maps) and one created in code (Clojure maps directly) are *structurally identical*. No classes, no interfaces, no conversion layer.
+
+You can see this in `workflow/dsl.clj` — `linear-workflow` accepts either vector literals `[[:step1 :task handler-fn]]` or JSON-compatible maps `[{:id "step1" :type "task"}]`. Both produce the same `Workflow` record. The `step-from-map` function normalizes any map shape into a proper `Step` record.
 
 ### REPL-Driven Development
 
-The REPL is not just a convenience — it's a development paradigm. Handlers can be hot-patched at runtime without restarting the system. Workflows can be inspected, modified, and re-executed interactively. This dramatically accelerates development cycles for business logic that evolves rapidly.
+**The problem:** Traditional development cycles for business logic are slow — you change a handler, restart the server, re-create the workflow, re-run it. When your business logic changes daily, this friction adds up.
 
-**Evidence:** The demo includes a REPL walkthrough (`demo/repl_demo.clj`) that demonstrates modifying a handler at runtime and seeing the change take effect on the next execution — zero restart time.
+**How Clojure helps:** The REPL isn't just a console — it's a full development environment. You can hot-patch handlers at runtime without restarting anything. Modify a function, re-evaluate it, and the next execution uses the new version. Zero downtime.
+
+Check out `demo/repl_demo.clj` for a walkthrough that does exactly this: it modifies a handler at runtime and shows the change taking effect on the next execution.
 
 ### core.async — CSP Concurrency
 
-Communicating Sequential Processes (CSP) via `core.async` channels provide a clean abstraction for concurrent workflow execution. The scheduler distributes work through channels without locks, mutexes, or shared mutable state. Each workflow execution runs in its own go-block, communicating results through typed channels.
+**The problem:** Concurrent workflow execution needs a clean way to distribute work without introducing complexity. Threads + locks are error-prone and hard to debug.
 
-**Evidence:** The scheduler (`scheduler/core.clj`) uses `core.async/go-loop` to process pending executions. Event publishing uses channels for fan-out to subscribers. The publisher pattern (`events/publisher.clj`) routes events to subscribers without blocking the execution path.
+**How Clojure helps:** Clojure's `core.async` implements Communicating Sequential Processes (CSP) — a model where independent processes communicate through channels instead of sharing memory. The scheduler pushes work into a channel, workers pick it up, process it, and push results to another channel. No locks, no shared state, no race conditions.
+
+The scheduler (`scheduler/core.clj`) uses `go-loop` to process pending executions. Event publishing uses channels for fan-out to subscribers. Everything communicates through channels — it's clean, composable, and easy to reason about.
 
 ### Functional Composition
 
-Handlers are plain functions `(fn [context] result)`. They compose with `comp`, `partial`, `->>`, and other standard Clojure functions. Complex workflows are built by combining small, testable functions — not by inheriting from framework base classes.
+**The problem:** Traditional OOP frameworks make you inherit from base classes, override methods, and wire things together with configuration files. Adding cross-cutting concerns (retry, timeout, logging) means more inheritance, more complexity.
 
-**Evidence:** The retry mechanism (`worker/retry.clj`) accepts a policy map and returns a composed handler. The middleware stack in the API server (`api/middleware.clj`) uses function composition to build the request pipeline. Each handler in `worker/examples.clj` is a standalone function testable in isolation.
+**How Clojure helps:** Handlers are plain functions `(fn [context] result)`. You compose them with `comp`, `partial`, `->>`, and other standard Clojure tools. Need retry logic? Wrap your handler function. Need a timeout? Wrap it again. Complex behaviors emerge from combining small, testable functions.
+
+You can see this in action: `worker/retry.clj` accepts a policy map and returns a composed handler. The middleware stack in `api/middleware.clj` uses function composition to build the request pipeline. Every handler in `worker/examples.clj` is a standalone function you can test in isolation.
 
 ### Java Interop
 
-Access to the entire JVM ecosystem without ceremony. PostgreSQL drivers via `next.jdbc`, JSON via `cheshire`, HTTP via `ring`, structured logging via `clojure.tools.logging` — all mature, battle-tested libraries. The JVM's garbage collector and JIT compiler provide excellent performance for free.
+**The problem:** You want mature, battle-tested libraries for database access, HTTP, JSON — not half-baked Clojure-only alternatives.
 
-**Evidence:** The project uses `next.jdbc` for database access, `cheshire` for JSON, `ring` for HTTP, `hikari-cp` for connection pooling, and `integrant` for lifecycle management — all standard JVM libraries used idiomatically from Clojure.
-
-### Spec & Validation
-
-`clojure.spec` (available but not yet used in this POC) provides runtime data validation. Workflows can be validated before execution with declarative specs. The existing `workflow/validator.clj` demonstrates manual validation that could be upgraded to spec-based validation with minimal effort.
+**How Clojure helps:** Clojure runs on the JVM, so you get full access to the entire Java ecosystem without ceremony. PostgreSQL drivers via `next.jdbc`, JSON via `cheshire`, HTTP via `ring`, connection pooling via `hikari-cp` — all standard, well-maintained libraries used idiomatically from Clojure.
 
 ### Event Sourcing
 
-Every state change produces an immutable event record. The event store provides a complete audit trail of workflow execution. Events are both persisted to PostgreSQL and published to in-process subscribers, enabling real-time monitoring and debugging.
+**The problem:** When a workflow fails, you need to know exactly what happened — which step failed, what the context was at that point, and what events led to the failure. Logs are great, but they're not structured or queryable.
 
-**Evidence:** The engine records `workflow-started`, `step-started`, `step-completed`, `step-failed`, and `workflow-completed` events for every execution. The event store (`events/store.clj`) and event repo (`persistence/event_repo.clj`) provide both write and query capabilities.
+**How Clojure helps:** Every state change produces an immutable event record. The engine records `workflow-started`, `step-started`, `step-completed`, `step-failed`, and `workflow-completed` events for every execution. These events are both persisted to PostgreSQL (for audit and replay) and published to in-process subscribers (for real-time monitoring).
+
+The event store (`events/store.clj`) and event repo (`persistence/event_repo.clj`) handle the dual-write: durability for compliance, and live pub/sub for dashboards.
 
 ## Architecture
 
 ### Layered Architecture
 
-The project follows a **layered architecture** with clear separation of concerns across nine distinct layers. Each layer has a single responsibility and communicates with adjacent layers through well-defined interfaces.
+The project follows a **layered architecture** with clear separation of concerns. The 9 layers are grouped into 4 logical domains:
+
+- **Presentation** — HTTP interface (API layer)
+- **Business Logic** — Domain model and execution orchestration
+- **Processing** — Async work distribution (worker + scheduler)
+- **Infrastructure** — Persistence, events, metrics, and lifecycle config
 
 ```mermaid
-block-beta
-  columns 1
-  block:api:1
-    columns 1
-    A["🌐  API Layer"]
-    A1["HTTP Interface: Routes · Handlers · Middleware · Server"]
-  end
-  block:domain:1
-    columns 1
-    B["💼  Domain Layer"]
-    B1["Business Logic: Model · DSL · Validator"]
-  end
-  block:execution:1
-    columns 1
-    C["⚙️  Execution Layer"]
-    C1["Orchestration: Engine · State Machine · Context · Ports · Adapters · Step Executor · Transitions"]
-  end
-  block:worker:1
-    columns 1
-    D["🔧  Worker Layer"]
-    D1["Step Execution: Handler · Retry · Registry · Examples"]
-  end
-  block:scheduler:1
-    columns 1
-    E["📡  Scheduler Layer"]
-    E1["Async Distribution: Core · Channels"]
-  end
-  block:events:1
-    columns 1
-    F["📣  Events Layer"]
-    F1["Event Sourcing: Store · Publisher"]
-  end
-  block:persistence:1
-    columns 1
-    G["💾  Persistence Layer"]
-    G1["Data Access: DB · Workflow Repo · Execution Repo · Event Repo"]
-  end
-  block:metrics:1
-    columns 1
-    H["📊  Metrics Layer"]
-    H1["Observability: Collector"]
-  end
-  block:config:1
-    columns 1
-    I["🧩  Config Layer"]
-    I1["Lifecycle: System via Integrant"]
-  end
+graph TD
+    subgraph Presentation["🌐 Presentation"]
+        API["API Layer\nRoutes · Handlers · Middleware"]
+    end
 
-  style A fill:#6366f1,stroke:#4f46e5,color:#fff,stroke-width:2px
-  style A1 fill:#e0e7ff,stroke:#6366f1,color:#1e1b4b
-  style B fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px
-  style B1 fill:#ede9fe,stroke:#8b5cf6,color:#1e1b4b
-  style C fill:#a855f7,stroke:#9333ea,color:#fff,stroke-width:2px
-  style C1 fill:#f3e8ff,stroke:#a855f7,color:#1e1b4b
-  style D fill:#d946ef,stroke:#c026d3,color:#fff,stroke-width:2px
-  style D1 fill:#fae8ff,stroke:#d946ef,color:#1e1b4b
-  style E fill:#ec4899,stroke:#db2777,color:#fff,stroke-width:2px
-  style E1 fill:#fce7f3,stroke:#ec4899,color:#1e1b4b
-  style F fill:#f43f5e,stroke:#e11d48,color:#fff,stroke-width:2px
-  style F1 fill:#ffe4e6,stroke:#f43f5e,color:#1e1b4b
-  style G fill:#f97316,stroke:#ea580c,color:#fff,stroke-width:2px
-  style G1 fill:#ffedd5,stroke:#f97316,color:#1e1b4b
-  style H fill:#eab308,stroke:#ca8a04,color:#fff,stroke-width:2px
-  style H1 fill:#fef9c3,stroke:#eab308,color:#1e1b4b
-  style I fill:#22c55e,stroke:#16a34a,color:#fff,stroke-width:2px
-  style I1 fill:#dcfce7,stroke:#22c55e,color:#1e1b4b
+    subgraph Business["💼 Business Logic"]
+        Domain["Domain Layer\nModel · DSL · Validator"]
+        Execution["Execution Layer\nEngine · State Machine · Context"]
+    end
+
+    subgraph Processing["⚙️ Processing"]
+        Worker["Worker Layer\nHandler · Retry · Registry"]
+        Scheduler["Scheduler Layer\nChannels · Go-loops"]
+    end
+
+    subgraph Infrastructure["🔌 Infrastructure"]
+        Events["Events Layer\nStore · Publisher"]
+        Persistence["Persistence Layer\nDB · Repos"]
+        Metrics["Metrics Layer\nCollector"]
+        Config["Config Layer\nIntegrant Lifecycle"]
+    end
+
+    API --> Domain
+    Domain --> Execution
+    Execution --> Worker
+    Worker --> Scheduler
+    Scheduler --> Execution
+    Execution --> Events
+    Execution --> Persistence
+    Persistence --> PostgreSQL[("PostgreSQL")]
+    Events --> PostgreSQL
+    Config -.->|"manages lifecycle"| API
+    Config -.->|"manages lifecycle"| Persistence
+    Metrics -.->|"observes"| Execution
+
+    style Presentation fill:#3b82f6,stroke:#2563eb,color:#fff,stroke-width:2px
+    style Business fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px
+    style Processing fill:#ec4899,stroke:#db2777,color:#fff,stroke-width:2px
+    style Infrastructure fill:#64748b,stroke:#475569,color:#fff,stroke-width:2px
+    style API fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
+    style Domain fill:#ede9fe,stroke:#8b5cf6,color:#1e1b4b
+    style Execution fill:#ede9fe,stroke:#8b5cf6,color:#1e1b4b
+    style Worker fill:#fce7f3,stroke:#ec4899,color:#1e1b4b
+    style Scheduler fill:#fce7f3,stroke:#ec4899,color:#1e1b4b
+    style Events fill:#e2e8f0,stroke:#64748b,color:#1e293b
+    style Persistence fill:#e2e8f0,stroke:#64748b,color:#1e293b
+    style Metrics fill:#e2e8f0,stroke:#64748b,color:#1e293b
+    style Config fill:#e2e8f0,stroke:#64748b,color:#1e293b
+    style PostgreSQL fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
 ```
 
 #### Layer Responsibilities
@@ -157,83 +153,74 @@ block-beta
 
 ```mermaid
 graph TD
-    Client["🖥️  Client"]
+    Client["Client"]
 
-    subgraph REST["🌐 REST API — Ring + Reitit"]
+    subgraph API["REST API"]
         direction TB
-        Health["/health"]
-        Metrics["/metrics"]
-        Routes["Routes — reitit"]
+        Routes["Routes"]
         Handlers["Handlers"]
+        Middleware["Middleware"]
         Routes --> Handlers
     end
 
-    subgraph Engine["⚙️  Workflow Engine"]
+    subgraph Engine["Workflow Engine"]
         direction TB
-        Eng["Engine — engine"]
-        SM["State Machine — state_machine"]
-        Worker["Worker — handler"]
-        Registry["Handler Registry — registry"]
-        Retry["Retry — retry"]
-        Timeout["Timeout — handler"]
+        Eng["Engine"]
+        SM["State Machine"]
+        Worker["Worker"]
+        Registry["Handler Registry"]
+        Retry["Retry"]
         Eng --> SM
         Eng --> Worker
         Worker --> Registry
         Worker --> Retry
-        Worker --> Timeout
     end
 
-    subgraph Events["📣  Event System"]
+    subgraph Events["Event System"]
         direction TB
-        Store["Store — store"]
-        Publisher["Publisher — publisher"]
+        Store["Store"]
+        Publisher["Publisher"]
         Store --> Publisher
     end
 
-    subgraph Persistence["💾  Persistence"]
+    subgraph Persistence["Persistence"]
         direction TB
         WFRepo["Workflow Repo"]
         ExecRepo["Execution Repo"]
         EventRepo["Event Repo"]
-        Collector["Metrics Collector — collector"]
     end
 
-    subgraph Infra["🐳  Docker Compose Network"]
-        direction LR
-        PostgreSQL[("🐘  PostgreSQL\n:5432")]
-        App["📦  App Container\nworkflow-engine uberjar"]
+    subgraph Infra["Infrastructure"]
+        PostgreSQL[("PostgreSQL")]
     end
 
-    Client --> REST
-    REST --> Engine
+    Client --> API
+    API --> Engine
     Engine --> Events
     Engine --> Persistence
     Persistence --> Infra
+    Events --> Infra
 
     style Client fill:#06b6d4,stroke:#0891b2,color:#fff,stroke-width:3px
-    style REST fill:#3b82f6,stroke:#2563eb,color:#fff,stroke-width:2px
+    style API fill:#3b82f6,stroke:#2563eb,color:#fff,stroke-width:2px
     style Engine fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px
     style Events fill:#f43f5e,stroke:#e11d48,color:#fff,stroke-width:2px
     style Persistence fill:#f97316,stroke:#ea580c,color:#fff,stroke-width:2px
     style Infra fill:#64748b,stroke:#475569,color:#fff,stroke-width:2px
-    style Health fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
-    style Metrics fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
     style Routes fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
     style Handlers fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
+    style Middleware fill:#bfdbfe,stroke:#3b82f6,color:#1e3a5f
     style Eng fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
     style SM fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
     style Worker fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
     style Registry fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
     style Retry fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
-    style Timeout fill:#c4b5fd,stroke:#8b5cf6,color:#1e1b4b
     style Store fill:#fecdd3,stroke:#f43f5e,color:#4a0012
     style Publisher fill:#fecdd3,stroke:#f43f5e,color:#4a0012
     style WFRepo fill:#fed7aa,stroke:#f97316,color:#431407
     style ExecRepo fill:#fed7aa,stroke:#f97316,color:#431407
     style EventRepo fill:#fed7aa,stroke:#f97316,color:#431407
-    style Collector fill:#fed7aa,stroke:#f97316,color:#431407
     style PostgreSQL fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
-    style App fill:#e2e8f0,stroke:#64748b,color:#1e293b
 ```
 
 ### Execution Flow
@@ -242,29 +229,29 @@ The following diagram illustrates how a workflow execution flows through the sys
 
 ```mermaid
 graph TD
-    A["🖥️  Client Request"] -->|"POST /api/v1/executions"| B
+    A["Client Request"] -->|"POST /api/v1/executions"| B
 
-    B["🌐  REST API\nhandlers"] -->|"Creates Execution\n(status: :pending)"| C
+    B["REST API\nhandlers"] -->|"Creates Execution\n(status: :pending)"| C
 
-    C["⚙️  Engine\nengine"] -->|"Records :workflow-started"| D
+    C["Engine"] -->|"Records :workflow-started"| D
 
-    D["📡  Scheduler\ncore.async channel"] -->|"Picks up pending\nexecution"| E
+    D["Scheduler\ncore.async"] -->|"Picks up pending\nexecution"| E
 
-    E["🔧  Worker\nhandler"] -->|"Resolves handler\n(step → registry fallback)\nExecutes with timeout"| F
+    E["Worker\nhandler"] -->|"Resolves + executes\nwith timeout"| F
 
-    F{"🔄  Retry\nretry"}
+    F{"Retry?"}
 
     F -->|"On failure:\nexponential backoff"| G
     F -->|"On success:\nreturns result"| G
 
-    G["🔀  State Machine\nstate_machine"] -->|"Determines next status\nbased on step type + result"| H
+    G["State Machine"] -->|"Determines next\nstatus"| H
 
-    H["⚙️  Engine — Advance"] -->|"Updates execution status\nRecords :step-completed/:step-failed"| I
+    H["Engine — Advance"] -->|"Updates status\nRecords event"| I
 
-    I["📣  Events\nstore"] -->|"Persists to PostgreSQL\n(audit trail)"| J
-    I -->|"Publishes to in-process\nsubscribers (real-time)"| J
+    I["Events\nstore"] -->|"Persists to PostgreSQL"| J
+    I -->|"Publishes to\nsubscribers"| J
 
-    J["📊  Metrics\ncollector"] --> K["✅  Complete"]
+    J["Metrics"] --> K["Complete"]
 
     style A fill:#06b6d4,stroke:#0891b2,color:#fff,stroke-width:3px
     style B fill:#3b82f6,stroke:#2563eb,color:#fff,stroke-width:2px
@@ -344,21 +331,21 @@ This project implements several well-known software architecture patterns, adapt
 stateDiagram-v2
     direction LR
 
-    [*] --> pending : 🚀 start
+    [*] --> pending : start
 
-    pending --> running : ▶ start
+    pending --> running : start
 
-    running --> completed : ✅ step-completed\n(no next step)
-    running --> running : ⏭️ step-completed\n(next step)
-    running --> failed : ❌ step-failed
-    running --> waiting : ⏸️ wait-step
-    running --> cancelled : 🚫 cancel
+    running --> completed : step-completed\n(no next step)
+    running --> running : step-completed\n(next step)
+    running --> failed : step-failed
+    running --> waiting : wait-step
+    running --> cancelled : cancel
 
-    failed --> running : 🔄 retry\n(exponential backoff)
-    waiting --> running : ▶ resume
+    failed --> running : retry\n(exponential backoff)
+    waiting --> running : resume
 
-    completed --> [*] : 🎉 done
-    cancelled --> [*] : 🛑 cancelled
+    completed --> [*] : done
+    cancelled --> [*] : cancelled
 
     note right of running
         Core state where step execution
